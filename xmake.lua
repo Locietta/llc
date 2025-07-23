@@ -11,11 +11,11 @@ if is_os("windows") then
     add_defines("WIN32_LEAN_AND_MEAN", "UNICODE", "_UNICODE", "NOMINMAX", "_WINDOWS")
 end
 
--- add_repositories("local-repo xmake")
 -- add_requires("kompute 0.9.*", "fmt")
 
 -- includes("3rd-party")
 
+add_repositories("local-repo xmake")
 add_moduledirs("xmake/modules")
 
 includes("xmake/*.lua")
