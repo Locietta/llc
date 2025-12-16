@@ -21,6 +21,6 @@ add_moduledirs("xmake/modules")
 includes("xmake/*.lua")
 
 add_requires("fmt")
-add_requires("slang")
+add_requires("slang", "slang-rhi")
 
 includes("*/xmake.lua")
