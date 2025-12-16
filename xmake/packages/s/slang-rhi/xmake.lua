@@ -38,7 +38,7 @@ package("slang-rhi")
 
         package:add("links", "slang-rhi", "slang-rhi-resources")
 
-        local build_dir = package:buildir()
+        local build_dir = package:builddir()
         -- Copy slang-rhi-resources.lib to package lib directory
         if is_plat("windows") then
             local rc_lib = path.join(build_dir, "slang-rhi-resources.lib")
