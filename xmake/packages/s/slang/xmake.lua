@@ -1,3 +1,5 @@
+-- This package searches for an existing local installation of Slang. It does not build Slang from source.
+
 package("slang")
     set_homepage("https://shader-slang.org/")
     set_description("A shading language that makes it easier to build and maintain large shader codebases in a modular and extensible fashion.")
@@ -15,7 +17,6 @@ package("slang")
     end)
 
     on_fetch(function (package)
-
         local result = {}
 
         local link_dir = package:installdir("lib")

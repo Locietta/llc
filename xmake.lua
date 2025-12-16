@@ -1,12 +1,12 @@
-set_xmakever("2.9.9")
-set_project("llvk")
+set_xmakever("3.0.0")
+set_project("llc")
 
 add_rules("mode.release", "mode.debug", "mode.releasedbg")
 
 set_languages("cxx23")
 
 if is_os("windows") then
-    set_toolchains("clang-cl")
+    -- set_toolchains("clang-cl")
     add_defines("_CRT_SECURE_NO_WARNINGS")
     add_defines("WIN32_LEAN_AND_MEAN", "UNICODE", "_UNICODE", "NOMINMAX", "_WINDOWS")
 end
