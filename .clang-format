@@ -47,6 +47,13 @@ BreakBeforeBinaryOperators: None
 BreakBeforeTernaryOperators: false
 BreakBeforeConceptDeclarations: true
 BreakBeforeInheritanceComma: false
+BreakBeforeTemplateCloser: true
+#### these are only available in clang-format 22...
+# BreakBeforeCloseBracketBracedList: true
+# BreakBeforeCloseBracketFunction: true
+# BreakBeforeCloseBracketIf: true
+# BreakBeforeCloseBracketLoop: true
+# BreakBeforeCloseBracketSwitch: true
 BreakAfterAttributes: Leave
 BreakAfterJavaFieldAnnotations: true
 BreakStringLiterals: true

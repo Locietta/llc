@@ -38,6 +38,7 @@ struct App final {
 ComPtr<slang::IModule> App::compile_shader_module_from_file(
     slang::ISession *slang_session,
     const char *file_path) {
+
     ComPtr<slang::IModule> slang_module;
     ComPtr<slang::IBlob> diagnostics;
 
@@ -141,7 +142,7 @@ i32 App::run(i32 argc, const char *argv[]) {
         SLANG_RETURN_ON_FAIL(bind_segment("A", 0));
         SLANG_RETURN_ON_FAIL(bind_segment("B", segment_byte_size));
         SLANG_RETURN_ON_FAIL(bind_segment("result", segment_byte_size * 2));
-        u32 group_count = divide_and_round_up(element_count, thread_group_size);
+        const u32 group_count = divide_and_round_up(element_count, thread_group_size);
         compute_encoder->dispatchCompute(group_count, 1, 1);
         compute_encoder->end();
     }
