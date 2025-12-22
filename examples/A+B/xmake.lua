@@ -1,0 +1,10 @@
+
+target("a+b")
+    set_kind("binary")
+    add_rules("slang", {
+        language_version = "2026"
+    })
+    add_files("main.cpp")
+    add_files("shaders/*.slang")
+    add_packages("fmt", "slang-rhi")
+    add_deps("util")

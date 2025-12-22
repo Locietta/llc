@@ -1,4 +1,5 @@
 /// Simple A+B compute shader
+module APlusB;
 
 StructuredBuffer<float> A;
 StructuredBuffer<float> B;
