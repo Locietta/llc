@@ -9,7 +9,7 @@ rule("slang")
         local slangc = assert(find_tool("slangc"), "slangc not found!")
         local basename = path.basename(sourcefile)
 
-        local output_subdir = target:extraconf("rules", "slang", "outputdir") or "slang-modules"
+        local output_subdir = target:extraconf("rules", "slang", "outputdir") or "shaders"
         local outputdir = path.join(target:targetdir(), output_subdir)
         if not os.isdir(outputdir) then 
             os.mkdir(outputdir)
@@ -35,7 +35,7 @@ rule("slang")
 
     after_clean(function (target)
         import("private.action.clean.remove_files")
-        local output_subdir = target:extraconf("rules", "slang", "outputdir") or "slang-modules"
+        local output_subdir = target:extraconf("rules", "slang", "outputdir") or "shaders"
         local outputdir = path.join(target:targetdir(), output_subdir)
         remove_files(outputdir)
     end)
