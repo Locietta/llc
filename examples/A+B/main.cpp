@@ -6,22 +6,14 @@
 #include <fmt/core.h>
 #include <vector>
 #include <random>
-#include "util.hpp"
+
+#include <llc/types.hpp>
+#include <llc/kernel.h>
+#include <llc/blob.h>
+#include <llc/math.h>
 
 namespace llc {
 using Slang::ComPtr;
-
-inline void diagnose_if_needed(slang::IBlob *diagnostics) {
-    if (diagnostics != nullptr) {
-        fmt::print("{}", (const char *) diagnostics->getBufferPointer());
-    }
-}
-
-struct Kernel final {
-    ComPtr<rhi::IShaderProgram> program_;
-    ComPtr<rhi::IComputePipeline> pipeline_;
-    operator bool() const noexcept { return program_ && pipeline_; }
-};
 
 struct App final {
     ComPtr<rhi::IDevice> device_;
@@ -31,51 +23,18 @@ struct App final {
     Kernel compute_kernel_;
     i32 run(i32 argc, const char *argv[]);
     SlangResult load_kernels();
-    ComPtr<slang::IModule> compile_shader_module_from_file(slang::ISession *slang_session, const char *file_path);
-    Kernel load_compute_program(slang::IModule *slang_module, const char *entry_point_name);
 };
 
-ComPtr<slang::IModule> App::compile_shader_module_from_file(
-    slang::ISession *slang_session,
-    const char *file_path) {
-
-    ComPtr<slang::IModule> slang_module;
-    ComPtr<slang::IBlob> diagnostics;
-
-    slang_module = slang_session->loadModule(file_path, diagnostics.writeRef());
-    diagnose_if_needed(diagnostics);
-
-    return slang_module;
-}
-
-Kernel App::load_compute_program(slang::IModule *slang_module, const char *entry_point_name) {
-    ComPtr<slang::IEntryPoint> entry_point;
-    slang_module->findEntryPointByName(entry_point_name, entry_point.writeRef());
-
-    ComPtr<slang::IComponentType> linked_program;
-    entry_point->link(linked_program.writeRef());
-
-    Kernel res;
-
-    rhi::ComputePipelineDesc desc;
-    auto program = device_->createShaderProgram(linked_program);
-    desc.program = program.get();
-    res.program_ = program;
-    res.pipeline_ = device_->createComputePipeline(desc);
-    return res;
-}
-
 SlangResult App::load_kernels() {
-    const char *kernel_path = "shaders/a+b.slang";
-
+    const char *kernel_name = "a+b";
     slang_session_ = device_->getSlangSession();
-    slang_module_ = compile_shader_module_from_file(slang_session_.get(), kernel_path);
+    slang_module_ = load_shader_module(slang_session_.get(), kernel_name);
     if (!slang_module_) {
-        fmt::println("Failed to compile shader module from file: {}", kernel_path);
+        fmt::println("Failed to load shader module: {}", kernel_name);
         return SLANG_FAIL;
     }
 
-    compute_kernel_ = load_compute_program(slang_module_.get(), "computeMain");
+    compute_kernel_ = Kernel::load(slang_module_.get(), device_.get(), "computeMain");
     if (!compute_kernel_) {
         fmt::println("Failed to load compute program.");
         return SLANG_FAIL;

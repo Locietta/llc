@@ -18,7 +18,7 @@ includes("xmake/*.lua")
 
 add_rules("output.separate-per-target")
 add_rules("slang", {
-    outputdir = "slang-modules",
+    outputdir = "shaders",
     language_version = "2026",
 })
 
