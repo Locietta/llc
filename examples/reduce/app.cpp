@@ -12,6 +12,15 @@ namespace llc {
 
 using Slang::ComPtr;
 
+constexpr u32 calc_reduce_times(u32 length, u32 group_size) noexcept {
+    if (length <= 1) return 0;
+
+    const u32 a_msb_pos = 32u - std::countl_zero(length - 1);
+    const u32 b_msb_pos = 32u - std::countl_zero(group_size - 1);
+
+    return divide_and_round_up(a_msb_pos, b_msb_pos);
+}
+
 i32 App::run(i32 argc, const char *argv[]) {
     rhi::DeviceDesc device_desc;
     device_desc.slang.targetProfile = "spirv_1_6";
@@ -38,8 +47,8 @@ i32 App::run(i32 argc, const char *argv[]) {
     }
 
     /// generate test data
-    constexpr usize element_count = 256;
-    constexpr usize thread_group_size = 256;
+    constexpr u32 element_count = 1024;
+    constexpr u32 thread_group_size = 256;
 
     std::vector<f32> init_data(element_count);
     {
@@ -67,20 +76,25 @@ i32 App::run(i32 argc, const char *argv[]) {
         return -1;
     }
 
-    /// dispatch the kernel
-    {
+    const auto reduce_times = calc_reduce_times(element_count, thread_group_size);
+
+    /// dispatch the kernelss
+    for (u32 i = 0, l = element_count; i < reduce_times; i++) {
         auto pass = encoder->beginComputePass();
         auto root_shader = pass->bindPipeline(naive_kernel_.pipeline_.get());
         auto root_cursor = rhi::ShaderCursor(root_shader);
 
-        const auto bind_buffer = [&] (const char *name, rhi::BufferRange range) {
+        const auto bind_buffer = [&](const char *name, rhi::BufferRange range) {
             return root_cursor[name].setBinding(rhi::Binding(device_buffer.get(), range));
         };
+        const u32 group_count = divide_and_round_up(l, thread_group_size);
+        const u32 input_byte_size = sizeof(f32) * l;
+        const u32 output_byte_size = sizeof(f32) * group_count;
+        l = group_count;
+        
+        SLANG_RETURN_ON_FAIL(bind_buffer("source", {0, input_byte_size}));
+        SLANG_RETURN_ON_FAIL(bind_buffer("result", {0, output_byte_size}));
 
-        SLANG_RETURN_ON_FAIL(bind_buffer("source", {0, buffer_byte_size}));
-        SLANG_RETURN_ON_FAIL(bind_buffer("result", {0, buffer_byte_size}));
-
-        const u32 group_count = divide_and_round_up(element_count, thread_group_size);
         pass->dispatchCompute(group_count, 1, 1);
         pass->end();
     }
@@ -91,7 +105,7 @@ i32 App::run(i32 argc, const char *argv[]) {
 
     queue->waitOnHost();
     ComPtr<ISlangBlob> blob;
-    
+
     auto result_view = read_buffer<f32>(device_.get(), device_buffer.get(), 0, 1);
     if (!result_view) {
         fmt::println("Failed to read back buffer data from device.");
