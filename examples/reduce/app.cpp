@@ -78,17 +78,19 @@ i32 App::run(i32 argc, const char *argv[]) {
     }
 
     const auto reduce_times = calc_reduce_times(element_count, thread_group_size);
-    GpuTimer gpu_timer(device_.get(), reduce_times * 2);
-    GpuTimer::Frame timer_frame(gpu_timer);
+    auto gpu_timer = GpuTimer::create(device_.get(), reduce_times * 2);
+
     if (!gpu_timer) {
         fmt::println("Warning: GPU timer is not available.");
     }
 
     /// dispatch the kernelss
     for (u32 i = 0, l = element_count; i < reduce_times; i++) {
-        const auto time_scope = gpu_timer.scope(encoder);
+        const auto timer_scope = gpu_timer ?
+                                     gpu_timer->scope(encoder.get(), fmt::format("reduce pass {:02}", i)) :
+                                     GpuTimer::Scope{};
 
-        auto pass = encoder->beginComputePass();
+        auto *pass = encoder->beginComputePass();
         {
             auto root_shader = pass->bindPipeline(naive_kernel_.pipeline_.get());
             auto root_cursor = rhi::ShaderCursor(root_shader);
@@ -115,20 +117,20 @@ i32 App::run(i32 argc, const char *argv[]) {
     queue->waitOnHost();
     ComPtr<ISlangBlob> blob;
 
-    if (timer_frame.resolve()) {
-        auto pass_durations = timer_frame.pair_durations();
-        if (!pass_durations.empty()) {
-            double total_gpu_time_sec = 0.0;
-            fmt::println(
-                "GPU timing ({} passes, freq {} Hz):",
-                reduce_times,
-                gpu_timer.timestamp_frequency());
-            for (usize i = 0; i < pass_durations.size(); ++i) {
-                total_gpu_time_sec += pass_durations[i];
-                fmt::println("  Pass {}: {:.3f} us", i, pass_durations[i] * 1e6);
-            }
-            fmt::println("Total GPU time: {:.3f} us", total_gpu_time_sec * 1e6);
+    if (gpu_timer && gpu_timer->resolve()) {
+        const auto labeled_durations = gpu_timer->labeled_durations();
+
+        fmt::println(
+            "GPU timing ({} passes, freq {} Hz):",
+            labeled_durations.size(),
+            gpu_timer->timestamp_frequency());
+
+        f64 total_gpu_time_sec = 0.0;
+        for (const auto &[label, duration] : labeled_durations) {
+            total_gpu_time_sec += duration;
+            fmt::println("    [{}] {:.3f} us", label, duration * 1e6);
         }
+        fmt::println("Total GPU time: {:.3f} us", total_gpu_time_sec * 1e6);
     }
 
     auto result_view = read_buffer<f32>(device_.get(), device_buffer.get(), 0, 1);

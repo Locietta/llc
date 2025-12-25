@@ -1,68 +1,40 @@
 #include "timer.h"
 
-#include <utility>
-
 namespace llc {
 
-bool GpuTimer::init(rhi::IDevice *device, u32 max_samples) {
-    reset();
-    if (!device || max_samples == 0) {
-        return false;
-    }
-    if (!device->hasFeature(rhi::Feature::TimestampQuery)) {
-        return false;
-    }
+std::optional<GpuTimer> GpuTimer::create(rhi::IDevice *device, u32 max_samples) {
+    GpuTimer timer;
+    if (!device || max_samples == 0) { return std::nullopt; }
+    if (!device->hasFeature(rhi::Feature::TimestampQuery)) { return std::nullopt; }
 
-    const uint64_t frequency = device->getInfo().timestampFrequency;
-    if (frequency == 0) {
-        return false;
-    }
+    const u64 frequency = device->getInfo().timestampFrequency;
+    if (frequency == 0) { return std::nullopt; }
 
-    rhi::QueryPoolDesc query_desc{};
-    query_desc.type = rhi::QueryType::Timestamp;
-    query_desc.count = max_samples;
+    rhi::QueryPoolDesc query_desc{
+        .type = rhi::QueryType::Timestamp,
+        .count = max_samples,
+    };
 
     Slang::ComPtr<rhi::IQueryPool> pool;
     if (SLANG_FAILED(device->createQueryPool(query_desc, pool.writeRef()))) {
-        return false;
+        return std::nullopt;
     }
 
-    device_ = device;
-    query_pool_ = pool;
-    timestamp_frequency_ = frequency;
-    capacity_ = max_samples;
-    next_query_index_ = 0;
-    results_.assign(capacity_, 0);
-    pair_durations_.clear();
-    resolved_ = false;
-    return true;
-}
-
-bool GpuTimer::is_available() const noexcept {
-    return query_pool_ != nullptr && timestamp_frequency_ != 0 && capacity_ > 0;
+    timer.query_pool_ = pool;
+    timer.timestamp_frequency_ = frequency;
+    timer.capacity_ = max_samples;
+    timer.next_query_index_ = 0;
+    timer.results_.resize(timer.capacity_);
+    timer.resolved_ = false;
+    return timer;
 }
 
 void GpuTimer::reset() {
-    query_pool_ = nullptr;
-    device_ = nullptr;
-    timestamp_frequency_ = 0;
-    capacity_ = 0;
-    next_query_index_ = 0;
-    results_.clear();
-    pair_durations_.clear();
-    resolved_ = false;
-}
-
-void GpuTimer::begin_frame() {
-    reset_queries();
-    resolved_ = false;
-}
-
-void GpuTimer::reset_queries() {
     if (query_pool_) {
         (void) query_pool_->reset();
     }
     next_query_index_ = 0;
+    pair_labels_.clear();
     resolved_ = false;
 }
 
@@ -103,18 +75,14 @@ bool GpuTimer::resolve() {
         return false;
     }
 
-    if (timestamp_frequency_ == 0) {
-        pair_durations_.clear();
-        resolved_ = true;
-        return true;
-    }
-
     const usize pair_count = count / 2;
-    pair_durations_.assign(pair_count, 0.0);
+    pair_durations_.resize(pair_count);
+    assert(pair_durations_.size() == pair_count);
+
     const double tick_to_seconds = 1.0 / static_cast<double>(timestamp_frequency_);
     for (usize i = 0; i < pair_count; ++i) {
-        const uint64_t start = results_[i * 2];
-        const uint64_t end = results_[i * 2 + 1];
+        const u64 start = results_[i * 2];
+        const u64 end = results_[i * 2 + 1];
         pair_durations_[i] = (end >= start) ? static_cast<double>(end - start) * tick_to_seconds : 0.0;
     }
 
@@ -122,7 +90,8 @@ bool GpuTimer::resolve() {
     return true;
 }
 
-std::span<const uint64_t> GpuTimer::raw_timestamps() const noexcept {
+std::span<const u64> GpuTimer::raw_timestamps() const noexcept {
+    assert(resolved_);
     if (!resolved_) {
         return {};
     }
@@ -130,39 +99,78 @@ std::span<const uint64_t> GpuTimer::raw_timestamps() const noexcept {
 }
 
 std::span<const double> GpuTimer::pair_durations() const noexcept {
+    assert(resolved_);
     if (!resolved_) {
         return {};
     }
     return {pair_durations_.data(), pair_durations_.size()};
 }
 
-double GpuTimer::ticks_to_seconds(uint64_t ticks) const noexcept {
-    if (timestamp_frequency_ == 0) {
-        return 0.0;
+std::span<const std::string> GpuTimer::labels() const noexcept {
+    assert(resolved_);
+    if (!resolved_) {
+        return {};
     }
+    return {pair_labels_.data(), pair_labels_.size()};
+}
+
+double GpuTimer::ticks_to_seconds(u64 ticks) const noexcept {
     return static_cast<double>(ticks) / static_cast<double>(timestamp_frequency_);
 }
 
-GpuTimer::Scope GpuTimer::scope(rhi::IPassEncoder *pass) {
-    return Scope(*this, pass);
+GpuTimer::Scope GpuTimer::scope(rhi::IPassEncoder *pass, std::string_view label) {
+    return Scope(*this, pass, label);
 }
 
-GpuTimer::Scope GpuTimer::scope(rhi::ICommandEncoder *encoder) {
-    return Scope(*this, encoder);
+GpuTimer::Scope GpuTimer::scope(rhi::ICommandEncoder *encoder, std::string_view label) {
+    return Scope(*this, encoder, label);
 }
 
-GpuTimer::Scope::Scope(GpuTimer &timer, rhi::IPassEncoder *pass)
+void GpuTimer::record_scope_label(std::string_view label) {
+    pair_labels_.emplace_back(label);
+}
+
+GpuTimer::Scope::Scope(GpuTimer &timer, rhi::IPassEncoder *pass, std::string_view label)
     : timer_(&timer), pass_(pass) {
     if (timer_ && pass_) {
         started_ = timer_->write_timestamp(pass_);
+        if (started_) {
+            timer_->record_scope_label(label);
+        }
     }
 }
 
-GpuTimer::Scope::Scope(GpuTimer &timer, rhi::ICommandEncoder *encoder)
+GpuTimer::Scope::Scope(GpuTimer &timer, rhi::ICommandEncoder *encoder, std::string_view label)
     : timer_(&timer), encoder_(encoder) {
     if (timer_ && encoder_) {
         started_ = timer_->write_timestamp(encoder_);
+        if (started_) {
+            timer_->record_scope_label(label);
+        }
     }
+}
+
+GpuTimer::Scope::Scope(Scope &&other) noexcept
+    : timer_(other.timer_), pass_(other.pass_), encoder_(other.encoder_), started_(other.started_) {
+    other.timer_ = nullptr;
+    other.pass_ = nullptr;
+    other.encoder_ = nullptr;
+    other.started_ = false;
+}
+
+GpuTimer::Scope &GpuTimer::Scope::operator=(Scope &&other) noexcept {
+    if (this != &other) {
+        timer_ = other.timer_;
+        pass_ = other.pass_;
+        encoder_ = other.encoder_;
+        started_ = other.started_;
+
+        other.timer_ = nullptr;
+        other.pass_ = nullptr;
+        other.encoder_ = nullptr;
+        other.started_ = false;
+    }
+    return *this;
 }
 
 GpuTimer::Scope::~Scope() {
@@ -173,25 +181,6 @@ GpuTimer::Scope::~Scope() {
             (void) timer_->write_timestamp(encoder_);
         }
     }
-}
-
-GpuTimer::Frame::Frame(GpuTimer &timer)
-    : timer_(&timer) {
-    if (timer_) {
-        timer_->begin_frame();
-    }
-}
-
-bool GpuTimer::Frame::resolve() {
-    return timer_ ? timer_->resolve() : false;
-}
-
-std::span<const uint64_t> GpuTimer::Frame::raw_timestamps() const noexcept {
-    return timer_ ? timer_->raw_timestamps() : std::span<const uint64_t>{};
-}
-
-std::span<const double> GpuTimer::Frame::pair_durations() const noexcept {
-    return timer_ ? timer_->pair_durations() : std::span<const double>{};
 }
 
 } // namespace llc
