@@ -7,6 +7,7 @@
 
 #include <llc/buffer.h>
 #include <llc/math.h>
+#include <llc/timer.h>
 
 namespace llc {
 
@@ -47,7 +48,7 @@ i32 App::run(i32 argc, const char *argv[]) {
     }
 
     /// generate test data
-    constexpr u32 element_count = 1024;
+    constexpr u32 element_count = 1 << 25;
     constexpr u32 thread_group_size = 256;
 
     std::vector<f32> init_data(element_count);
@@ -77,25 +78,33 @@ i32 App::run(i32 argc, const char *argv[]) {
     }
 
     const auto reduce_times = calc_reduce_times(element_count, thread_group_size);
+    GpuTimer gpu_timer(device_.get(), reduce_times * 2);
+    GpuTimer::Frame timer_frame(gpu_timer);
+    if (!gpu_timer) {
+        fmt::println("Warning: GPU timer is not available.");
+    }
 
     /// dispatch the kernelss
     for (u32 i = 0, l = element_count; i < reduce_times; i++) {
+        const auto time_scope = gpu_timer.scope(encoder);
+
         auto pass = encoder->beginComputePass();
-        auto root_shader = pass->bindPipeline(naive_kernel_.pipeline_.get());
-        auto root_cursor = rhi::ShaderCursor(root_shader);
+        {
+            auto root_shader = pass->bindPipeline(naive_kernel_.pipeline_.get());
+            auto root_cursor = rhi::ShaderCursor(root_shader);
 
-        const auto bind_buffer = [&](const char *name, rhi::BufferRange range) {
-            return root_cursor[name].setBinding(rhi::Binding(device_buffer.get(), range));
-        };
-        const u32 group_count = divide_and_round_up(l, thread_group_size);
-        const u32 input_byte_size = sizeof(f32) * l;
-        const u32 output_byte_size = sizeof(f32) * group_count;
-        l = group_count;
-        
-        SLANG_RETURN_ON_FAIL(bind_buffer("source", {0, input_byte_size}));
-        SLANG_RETURN_ON_FAIL(bind_buffer("result", {0, output_byte_size}));
+            const auto bind_buffer = [&](const char *name, rhi::BufferRange range) {
+                return root_cursor[name].setBinding(rhi::Binding(device_buffer.get(), range));
+            };
+            const u32 group_count = divide_and_round_up(l, thread_group_size);
+            const u32 input_byte_size = sizeof(f32) * l;
+            const u32 output_byte_size = sizeof(f32) * group_count;
+            l = group_count;
 
-        pass->dispatchCompute(group_count, 1, 1);
+            SLANG_RETURN_ON_FAIL(bind_buffer("source", {0, input_byte_size}));
+            SLANG_RETURN_ON_FAIL(bind_buffer("result", {0, output_byte_size}));
+            pass->dispatchCompute(group_count, 1, 1);
+        }
         pass->end();
     }
 
@@ -105,6 +114,22 @@ i32 App::run(i32 argc, const char *argv[]) {
 
     queue->waitOnHost();
     ComPtr<ISlangBlob> blob;
+
+    if (timer_frame.resolve()) {
+        auto pass_durations = timer_frame.pair_durations();
+        if (!pass_durations.empty()) {
+            double total_gpu_time_sec = 0.0;
+            fmt::println(
+                "GPU timing ({} passes, freq {} Hz):",
+                reduce_times,
+                gpu_timer.timestamp_frequency());
+            for (usize i = 0; i < pass_durations.size(); ++i) {
+                total_gpu_time_sec += pass_durations[i];
+                fmt::println("  Pass {}: {:.3f} us", i, pass_durations[i] * 1e6);
+            }
+            fmt::println("Total GPU time: {:.3f} us", total_gpu_time_sec * 1e6);
+        }
+    }
 
     auto result_view = read_buffer<f32>(device_.get(), device_buffer.get(), 0, 1);
     if (!result_view) {
