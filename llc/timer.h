@@ -15,7 +15,7 @@
 namespace llc {
 
 struct GpuTimer {
-    static std::optional<GpuTimer> create(rhi::IDevice *device, u32 max_samples);
+    static std::optional<GpuTimer> create(rhi::IDevice *device, u32 pass_count);
 
     void reset();
     bool resolve();

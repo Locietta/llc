@@ -78,7 +78,7 @@ i32 App::run(i32 argc, const char *argv[]) {
     }
 
     const auto reduce_times = calc_reduce_times(element_count, thread_group_size);
-    auto gpu_timer = GpuTimer::create(device_.get(), reduce_times * 2);
+    auto gpu_timer = GpuTimer::create(device_.get(), reduce_times);
 
     if (!gpu_timer) {
         fmt::println("Warning: GPU timer is not available.");

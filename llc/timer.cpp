@@ -2,13 +2,15 @@
 
 namespace llc {
 
-std::optional<GpuTimer> GpuTimer::create(rhi::IDevice *device, u32 max_samples) {
+std::optional<GpuTimer> GpuTimer::create(rhi::IDevice *device, u32 pass_count) {
     GpuTimer timer;
-    if (!device || max_samples == 0) { return std::nullopt; }
+    if (!device || pass_count == 0) { return std::nullopt; }
     if (!device->hasFeature(rhi::Feature::TimestampQuery)) { return std::nullopt; }
 
     const u64 frequency = device->getInfo().timestampFrequency;
     if (frequency == 0) { return std::nullopt; }
+
+    const u32 max_samples = pass_count * 2;
 
     rhi::QueryPoolDesc query_desc{
         .type = rhi::QueryType::Timestamp,
