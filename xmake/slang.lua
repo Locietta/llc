@@ -4,44 +4,44 @@ local function _is_parent_relpath(p)
     return p and p:find("^%.%.[/\\]?") ~= nil
 end
 
-local function _resolve_relative_output(sourcefile, scriptdir, output_subdir)
-    local source_abs = path.absolute(sourcefile)
-    local anchors = {
-        path.absolute(path.join(scriptdir, output_subdir)),
-        path.absolute(scriptdir)
-    }
-    for _, anchor in ipairs(anchors) do
-        local rel = path.relative(source_abs, anchor)
-        if rel and rel ~= "" and not _is_parent_relpath(rel) then
-            if rel == "." then
-                return path.filename(sourcefile)
-            end
-            return rel
-        end
-    end
-    return path.filename(sourcefile)
-end
-
-local function _ensure_output_dir(outputdir, relpath)
-    if not os.isdir(outputdir) then
-        os.mkdir(outputdir)
-    end
-    local rel_dir = path.directory(relpath)
-    if rel_dir and rel_dir ~= "." then
-        local final_outputdir = path.join(outputdir, rel_dir)
-        if not os.isdir(final_outputdir) then
-            os.mkdir(final_outputdir)
-        end
-        return final_outputdir
-    end
-    return outputdir
-end
-
 rule("slang")
     set_extensions(".slang", ".slangh")
 
     on_buildcmd_file(function (target, batchcmds, sourcefile, opt)
         import("lib.detect.find_tool")
+
+        local function _resolve_relative_output(sourcefile, scriptdir, output_subdir)
+            local source_abs = path.absolute(sourcefile)
+            local anchors = {
+                path.absolute(path.join(scriptdir, output_subdir)),
+                path.absolute(scriptdir)
+            }
+            for _, anchor in ipairs(anchors) do
+                local rel = path.relative(source_abs, anchor)
+                if rel and rel ~= "" and not _is_parent_relpath(rel) then
+                    if rel == "." then
+                        return path.filename(sourcefile)
+                    end
+                    return rel
+                end
+            end
+            return path.filename(sourcefile)
+        end
+
+        local function _ensure_output_dir(outputdir, relpath)
+            if not os.isdir(outputdir) then
+                os.mkdir(outputdir)
+            end
+            local rel_dir = path.directory(relpath)
+            if rel_dir and rel_dir ~= "." then
+                local final_outputdir = path.join(outputdir, rel_dir)
+                if not os.isdir(final_outputdir) then
+                    os.mkdir(final_outputdir)
+                end
+                return final_outputdir
+            end
+            return outputdir
+        end
 
         local basename = path.basename(sourcefile)
         local filename = path.filename(sourcefile)
