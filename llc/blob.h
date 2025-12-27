@@ -2,6 +2,7 @@
 #include <slang-com-ptr.h>
 
 #include <span>
+#include <cstring>
 #include <atomic>
 #include <memory>
 #include <filesystem>

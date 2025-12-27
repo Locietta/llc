@@ -8,7 +8,7 @@ This is just a personal project for learning and experimenting with (post-)moder
 
 ### Prerequisites
 
-This project uses [xmake](https://xmake.io/) as its build system. You also need to have a C++23 capable compiler installed (e.g. MSVC 2022, Clang 15, GCC 12 or newer).
+This project uses [xmake](https://xmake.io/) as its build system. You also need to have a C++23 capable compiler installed (e.g. MSVC 2022 17.7+, Clang 19+, GCC 14+).
 
 It's assumed [slang](https://github.com/shader-slang/slang) is installed and available in your PATH for `slangc` and its headers. It's recommended to install slang via [scoop](https://scoop.sh/) on Windows:
 
