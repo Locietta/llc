@@ -25,9 +25,9 @@ constexpr u32 calc_reduce_times(u32 length, u32 group_size) noexcept {
 
 i32 App::run(i32 argc, const char *argv[]) {
     cxxopts::Options options("reduce", "Reduce an array of floats using GPU compute shader");
-    options.add_options()                                                                                        //
-        ("kernel", "Kernel to use [naive|fallback|wave]", cxxopts::value<std::string>()->default_value("naive")) //
-        ("backend", "RHI backend to use [dx|vk]", cxxopts::value<std::string>()->default_value("vk"));           //
+    options.add_options()                                                                                     //
+        ("kernel", "Kernel to use [naive|wave]", cxxopts::value<std::string>()->default_value("naive"))       //
+        ("backend", "RHI backend to use [dx|vk|auto]", cxxopts::value<std::string>()->default_value("auto")); //
 
     options.parse_positional({"kernel", "backend"});
     auto result = options.parse(argc, argv);
@@ -36,7 +36,9 @@ i32 App::run(i32 argc, const char *argv[]) {
     const std::string backend_name = result["backend"].as<std::string>();
 
     rhi::DeviceDesc device_desc;
-    if (backend_name == "vk") {
+    if (backend_name == "auto") {
+        device_desc.deviceType = rhi::DeviceType::Default;
+    } else if (backend_name == "vk") {
         device_desc.slang.targetProfile = "spirv_1_6";
         device_desc.deviceType = rhi::DeviceType::Vulkan;
     } else if (backend_name == "dx") {
