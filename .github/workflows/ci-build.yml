@@ -1,0 +1,39 @@
+name: CI Build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+        with:
+          submodules: recursive
+
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          package-cache: true
+          package-cache-key: windows-xmake-packages
+
+      - name: Install dependencies from Scoop
+        uses: MinoruSekine/setup-scoop@v4.0.2
+        with:
+          apps: |
+            slang
+            vulkan
+            cmake
+            ninja
+
+      - name: Configure
+        shell: pwsh
+        run: xmake f -m release -y
+
+      - name: Build
+        shell: pwsh
+        run: xmake -vD -y
