@@ -22,11 +22,7 @@ jobs:
       - name: Install dependencies from Scoop
         uses: MinoruSekine/setup-scoop@v4.0.2
         with:
-          apps: |
-            slang
-            vulkan
-            cmake
-            ninja
+          apps: slang vulkan cmake ninja
 
       - name: Configure
         shell: pwsh
