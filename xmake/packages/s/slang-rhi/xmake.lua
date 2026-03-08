@@ -33,6 +33,10 @@ package("slang-rhi")
         table.insert(configs, "-DSLANG_RHI_BUILD_EXAMPLES=OFF")
 
         table.insert(configs, "-DSLANG_RHI_FETCH_SLANG=OFF")
+        if is_plat("windows") then
+            table.insert(configs, "-DCMAKE_C_FLAGS_INIT=/utf-8")
+            table.insert(configs, "-DCMAKE_CXX_FLAGS_INIT=/utf-8")
+        end
 
         import("package.tools.cmake").install(package, configs)
 
