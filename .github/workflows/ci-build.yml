@@ -18,8 +18,6 @@ jobs:
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
-          package-cache: true
-          package-cache-key: windows-xmake-packages
 
       - name: Install dependencies from Scoop
         uses: MinoruSekine/setup-scoop@v4.0.2
