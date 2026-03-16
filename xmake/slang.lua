@@ -9,6 +9,7 @@ rule("slang")
 
     on_buildcmd_file(function (target, batchcmds, sourcefile, opt)
         import("lib.detect.find_tool")
+        import("rules.utils.bin2obj.utils", {alias = "bin2obj_utils", rootdir = os.programdir()})
 
         local function _resolve_relative_output(sourcefile, scriptdir, output_subdir)
             local source_abs = path.absolute(sourcefile)
@@ -48,9 +49,12 @@ rule("slang")
         local scriptdir = target:scriptdir()
         local extname = (path.extension(sourcefile) or ""):lower()
         local is_header = extname == ".slangh"
+        local fileconfig = target:fileconfig(sourcefile) or {}
+        local embed = fileconfig.slang_embed or false
 
         local output_subdir = target:extraconf("rules", "slang", "outputdir") or "shaders"
-        local outputdir = path.join(target:targetdir(), output_subdir)
+        local output_root = embed and path.join(target:autogendir(), "rules", "slang", "embed") or target:targetdir()
+        local outputdir = path.join(output_root, output_subdir)
         local relpath = _resolve_relative_output(sourcefile, scriptdir, output_subdir)
         local final_outputdir = _ensure_output_dir(outputdir, relpath)
 
@@ -72,6 +76,16 @@ rule("slang")
 
             batchcmds:show_progress(opt.progress, "${color.build.object}compiling.slang %s", sourcefile)
             batchcmds:vrunv(slangc.program, slangc_opt)
+
+            if embed then
+                local objectfile = bin2obj_utils.generate_objectfile(target, batchcmds, outputfile, {
+                    rulename = "slang",
+                })
+                batchcmds:set_depmtime(os.mtime(objectfile))
+                batchcmds:set_depcache(target:dependfile(objectfile))
+                batchcmds:add_depfiles(sourcefile)
+                return
+            end
         end
 
         batchcmds:add_depfiles(sourcefile)
@@ -84,4 +98,5 @@ rule("slang")
         local output_subdir = target:extraconf("rules", "slang", "outputdir") or "shaders"
         local outputdir = path.join(target:targetdir(), output_subdir)
         remove_files(outputdir)
+        remove_files(path.join(target:autogendir(), "rules", "slang", "embed"))
     end)
