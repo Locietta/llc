@@ -29,5 +29,5 @@ void main(uint3 DTid: SV_DispatchThreadID, uint3 GTid: SV_GroupThreadID, uint3 G
 
     sum = (local_idx < WAVE_PER_GROUP) ? warp_level_sums[lane_id] : 0.0f;
     if (warp_id == 0) sum = WaveActiveSum(sum); // Final reduce using first warp
-    if (local_idx == 0) result[Gid.x] = sum; // Write the result for the group
+    if (local_idx == 0) result[Gid.x] = sum;    // Write the result for the group
 }
