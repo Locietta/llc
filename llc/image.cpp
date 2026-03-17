@@ -35,6 +35,40 @@ bool is_rgba8_format(rhi::Format format) noexcept {
     return format == rhi::Format::RGBA8Unorm || format == rhi::Format::RGBA8UnormSrgb;
 }
 
+bool is_finite(f32 value) noexcept {
+    return std::isfinite(value);
+}
+
+f32 sanitize_scalar(f32 value) noexcept {
+    return is_finite(value) ? value : 0.0f;
+}
+
+void load_rgba_from_rgba8(const byte *src, rhi::Format format, f32 rgba[4]) noexcept {
+    rgba[0] = unorm8_to_float(static_cast<u8>(src[0]));
+    rgba[1] = unorm8_to_float(static_cast<u8>(src[1]));
+    rgba[2] = unorm8_to_float(static_cast<u8>(src[2]));
+    rgba[3] = unorm8_to_float(static_cast<u8>(src[3]));
+    if (format == rhi::Format::RGBA8UnormSrgb) {
+        rgba[0] = srgb_to_linear(rgba[0]);
+        rgba[1] = srgb_to_linear(rgba[1]);
+        rgba[2] = srgb_to_linear(rgba[2]);
+    }
+}
+
+void store_rgba8_from_linear_rgba(byte *dst, rhi::Format format, const f32 rgba[4]) noexcept {
+    const f32 alpha = sanitize_scalar(rgba[3]);
+    if (format == rhi::Format::RGBA8UnormSrgb) {
+        dst[0] = static_cast<byte>(float_to_unorm8(linear_to_srgb(sanitize_scalar(rgba[0]))));
+        dst[1] = static_cast<byte>(float_to_unorm8(linear_to_srgb(sanitize_scalar(rgba[1]))));
+        dst[2] = static_cast<byte>(float_to_unorm8(linear_to_srgb(sanitize_scalar(rgba[2]))));
+    } else {
+        dst[0] = static_cast<byte>(float_to_unorm8(sanitize_scalar(rgba[0])));
+        dst[1] = static_cast<byte>(float_to_unorm8(sanitize_scalar(rgba[1])));
+        dst[2] = static_cast<byte>(float_to_unorm8(sanitize_scalar(rgba[2])));
+    }
+    dst[3] = static_cast<byte>(float_to_unorm8(alpha));
+}
+
 } // namespace
 
 Image::Image(u32 width, u32 height, rhi::Format format, usize row_pitch)
@@ -76,9 +110,22 @@ Image convert_image(const Image &image, rhi::Format format) {
 
     const bool src_rgba8 = is_rgba8_format(image.format);
     const bool dst_rgba8 = is_rgba8_format(format);
+    const bool src_r8 = image.format == rhi::Format::R8Unorm;
+    const bool dst_r8 = format == rhi::Format::R8Unorm;
+    const bool src_r32f = image.format == rhi::Format::R32Float;
+    const bool dst_r32f = format == rhi::Format::R32Float;
     const bool src_rgba32f = image.format == rhi::Format::RGBA32Float;
     const bool dst_rgba32f = format == rhi::Format::RGBA32Float;
-    if ((!src_rgba8 && !src_rgba32f) || (!dst_rgba8 && !dst_rgba32f)) {
+    const bool supported =
+        (src_rgba8 && dst_rgba8) ||
+        (src_rgba8 && dst_rgba32f) ||
+        (src_rgba32f && dst_rgba8) ||
+        (src_rgba32f && dst_rgba32f) ||
+        (src_r8 && dst_r32f) ||
+        (src_r32f && dst_r8) ||
+        (src_r32f && dst_rgba8) ||
+        (src_r32f && dst_rgba32f);
+    if (!supported) {
         return {};
     }
 
@@ -92,40 +139,57 @@ Image convert_image(const Image &image, rhi::Format format) {
         const auto *src_row = image.row_data(y);
         auto *dst_row = converted.row_data(y);
         for (u32 x = 0; x < image.width; ++x) {
+            if (src_r8 && dst_r32f) {
+                const auto *src = src_row + static_cast<usize>(x);
+                auto *dst = reinterpret_cast<f32 *>(dst_row + static_cast<usize>(x) * sizeof(f32));
+                dst[0] = unorm8_to_float(static_cast<u8>(src[0]));
+                continue;
+            }
+
+            if (src_r32f && dst_r8) {
+                const auto *src = reinterpret_cast<const f32 *>(src_row + static_cast<usize>(x) * sizeof(f32));
+                auto *dst = dst_row + static_cast<usize>(x);
+                dst[0] = static_cast<byte>(float_to_unorm8(sanitize_scalar(src[0])));
+                continue;
+            }
+
+            if (src_r32f && dst_rgba8) {
+                const auto *src = reinterpret_cast<const f32 *>(src_row + static_cast<usize>(x) * sizeof(f32));
+                const f32 value = sanitize_scalar(src[0]);
+                const f32 rgba[4] = {value, value, value, 1.0f};
+                auto *dst = dst_row + static_cast<usize>(x) * 4;
+                store_rgba8_from_linear_rgba(dst, format, rgba);
+                continue;
+            }
+
+            if (src_r32f && dst_rgba32f) {
+                const auto *src = reinterpret_cast<const f32 *>(src_row + static_cast<usize>(x) * sizeof(f32));
+                const f32 value = sanitize_scalar(src[0]);
+                auto *dst = reinterpret_cast<f32 *>(dst_row + static_cast<usize>(x) * 4 * sizeof(f32));
+                dst[0] = value;
+                dst[1] = value;
+                dst[2] = value;
+                dst[3] = 1.0f;
+                continue;
+            }
+
             f32 rgba[4]{};
             if (src_rgba8) {
                 const auto *src = src_row + static_cast<usize>(x) * 4;
-                rgba[0] = unorm8_to_float(static_cast<u8>(src[0]));
-                rgba[1] = unorm8_to_float(static_cast<u8>(src[1]));
-                rgba[2] = unorm8_to_float(static_cast<u8>(src[2]));
-                rgba[3] = unorm8_to_float(static_cast<u8>(src[3]));
-                if (image.format == rhi::Format::RGBA8UnormSrgb) {
-                    rgba[0] = srgb_to_linear(rgba[0]);
-                    rgba[1] = srgb_to_linear(rgba[1]);
-                    rgba[2] = srgb_to_linear(rgba[2]);
-                }
+                load_rgba_from_rgba8(src, image.format, rgba);
             } else {
-                const auto *src = reinterpret_cast<const f32 *>(src_row + static_cast<usize>(x) * 16);
-                rgba[0] = src[0];
-                rgba[1] = src[1];
-                rgba[2] = src[2];
-                rgba[3] = src[3];
+                const auto *src = reinterpret_cast<const f32 *>(src_row + static_cast<usize>(x) * 4 * sizeof(f32));
+                rgba[0] = sanitize_scalar(src[0]);
+                rgba[1] = sanitize_scalar(src[1]);
+                rgba[2] = sanitize_scalar(src[2]);
+                rgba[3] = sanitize_scalar(src[3]);
             }
 
             if (dst_rgba8) {
                 auto *dst = dst_row + static_cast<usize>(x) * 4;
-                if (format == rhi::Format::RGBA8UnormSrgb) {
-                    dst[0] = static_cast<byte>(float_to_unorm8(linear_to_srgb(rgba[0])));
-                    dst[1] = static_cast<byte>(float_to_unorm8(linear_to_srgb(rgba[1])));
-                    dst[2] = static_cast<byte>(float_to_unorm8(linear_to_srgb(rgba[2])));
-                } else {
-                    dst[0] = static_cast<byte>(float_to_unorm8(rgba[0]));
-                    dst[1] = static_cast<byte>(float_to_unorm8(rgba[1]));
-                    dst[2] = static_cast<byte>(float_to_unorm8(rgba[2]));
-                }
-                dst[3] = static_cast<byte>(float_to_unorm8(rgba[3]));
+                store_rgba8_from_linear_rgba(dst, format, rgba);
             } else {
-                auto *dst = reinterpret_cast<f32 *>(dst_row + static_cast<usize>(x) * 16);
+                auto *dst = reinterpret_cast<f32 *>(dst_row + static_cast<usize>(x) * 4 * sizeof(f32));
                 dst[0] = rgba[0];
                 dst[1] = rgba[1];
                 dst[2] = rgba[2];
@@ -138,7 +202,15 @@ Image convert_image(const Image &image, rhi::Format format) {
 }
 
 bool write_image_png(const std::filesystem::path &path, const Image &image) {
-    if (!image || image.format != rhi::Format::RGBA8Unorm) return false;
+    if (!image) return false;
+
+    if (image.format == rhi::Format::R32Float) {
+        auto converted = convert_image(image, rhi::Format::RGBA8Unorm);
+        if (!converted) return false;
+        return write_image_png(path, converted);
+    }
+
+    if (image.format != rhi::Format::RGBA8Unorm) return false;
 
     return stbi_write_png(
                path.string().c_str(),
