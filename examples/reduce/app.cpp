@@ -8,6 +8,7 @@
 
 #include <llc/buffer.h>
 #include <llc/math.h>
+#include <llc/pp/reduce.h>
 #include <llc/timer.h>
 
 namespace llc {
@@ -159,7 +160,27 @@ i32 App::run(i32 argc, const char *argv[]) {
         fmt::println("Failed to read back buffer data from device.");
         return -1;
     }
-    fmt::println("Reduction result: {}", result_view[0]);
+    const f32 gpu_result = result_view[0];
+
+    auto reference_buffer = create_structured_buffer<f32>(
+        device_.get(),
+        rhi::BufferUsage::ShaderResource | rhi::BufferUsage::CopySource |
+            rhi::BufferUsage::CopyDestination | rhi::BufferUsage::UnorderedAccess,
+        init_data);
+    if (!reference_buffer) {
+        fmt::println("Failed to create verification buffer.");
+        return -1;
+    }
+
+    const f32 llc_reduce_result = pp::reduce_sum_f32(device_.get(), reference_buffer.get(), element_count);
+
+    const f64 cpu_result = static_cast<f64>(element_count) * static_cast<f64>(element_count + 1) * 0.5;
+
+    fmt::println("reduction result: {}", gpu_result);
+    fmt::println("llc::pp::reduce result: {}", llc_reduce_result);
+    fmt::println("CPU reference result: {:.0f}", cpu_result);
+    fmt::println("abs error: {}", std::abs(static_cast<f64>(gpu_result) - cpu_result));
+    fmt::println("llc::pp abs error: {}", std::abs(static_cast<f64>(llc_reduce_result) - cpu_result));
     return 0;
 }
 
