@@ -13,8 +13,6 @@
 namespace llc {
 
 struct App final {
-    using NFloat = u16;
-
     struct Config final {
         u32 iteration_count = 1000;
         u32 report_interval = 10;

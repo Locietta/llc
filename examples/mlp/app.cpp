@@ -1,7 +1,6 @@
 #include "app.h"
 
 #include <array>
-#include <bit>
 #include <cassert>
 #include <cstring>
 #include <fstream>
@@ -38,7 +37,8 @@ struct json_data_contract<llc::App::Config> final {
         json_number<llc::k_json_iteration_count, llc::u32>,
         json_number<llc::k_json_report_interval, llc::u32>,
         json_number<llc::k_json_input_count, llc::u32>,
-        json_number<llc::k_json_random_seed, llc::u32>>;
+        json_number<llc::k_json_random_seed, llc::u32>
+    >;
 
     static inline auto to_json_data(const llc::App::Config &config) {
         return std::forward_as_tuple(
@@ -67,8 +67,8 @@ struct InputSample final {
 };
 
 struct AdamState final {
-    App::NFloat mean;
-    App::NFloat variance;
+    f16 mean;
+    f16 variance;
     i32 iteration;
 };
 
@@ -154,36 +154,12 @@ ComPtr<rhi::IBuffer> create_device_buffer(
         default_state);
 }
 
-App::NFloat float_to_half(f32 value) {
-    const u32 bits = std::bit_cast<u32>(value);
-    u16 result = static_cast<u16>((bits >> 16) & 0x8000u);
-    u16 mantissa = static_cast<u16>((bits >> 12) & 0x07ffu);
-    const u32 exponent = (bits >> 23) & 0xffu;
-
-    if (exponent < 103) return result;
-    if (exponent > 142) {
-        result = static_cast<u16>(result | 0x7c00u);
-        result = static_cast<u16>(result | (exponent == 255 && (bits & 0x007fffffu)));
-        return result;
-    }
-    if (exponent < 113) {
-        mantissa = static_cast<u16>(mantissa | 0x0800u);
-        result = static_cast<u16>(result | (mantissa >> (114 - exponent)));
-        result = static_cast<u16>(result + ((mantissa >> (113 - exponent)) & 1u));
-        return result;
-    }
-
-    result = static_cast<u16>(result | ((exponent - 112) << 10) | (mantissa >> 1));
-    result = static_cast<u16>(result + (mantissa & 1u));
-    return result;
-}
-
 usize align_up_64(usize size) noexcept {
     return divide_and_round_up(size, usize{64}) * 64;
 }
 
 u32 weight_stride(u32 layer_index) noexcept {
-    return k_layer_sizes[layer_index] * sizeof(App::NFloat);
+    return k_layer_sizes[layer_index] * sizeof(f16);
 }
 
 u32 weight_count(u32 layer_index) noexcept {
@@ -214,9 +190,9 @@ SlangResult allocate_network_parameter_storage(
 
     for (u32 i = 0; i < k_layer_count; ++i) {
         App::NetworkParameterAllocation allocation;
-        allocation.weights_size = weight_count(i) * sizeof(App::NFloat);
+        allocation.weights_size = weight_count(i) * sizeof(f16);
         allocation.weights_offset = allocate_segment(allocation.weights_size);
-        allocation.bias_size = bias_count(i) * sizeof(App::NFloat);
+        allocation.bias_size = bias_count(i) * sizeof(f16);
         allocation.bias_offset = allocate_segment(allocation.bias_size);
         param_storage.push_back(allocation);
     }
@@ -246,22 +222,22 @@ SlangResult allocate_network_parameter_storage(
     return SLANG_OK;
 }
 
-std::vector<App::NFloat> make_initial_network_params(
+std::vector<f16> make_initial_network_params(
     const std::vector<App::NetworkParameterAllocation> &layer_allocations,
     usize network_params_buffer_size,
     u32 random_seed) {
 
-    std::vector<App::NFloat> init_data(network_params_buffer_size / sizeof(App::NFloat), 0);
+    std::vector<f16> init_data(network_params_buffer_size / sizeof(f16), f16{});
 
     std::mt19937 rng(random_seed);
     std::uniform_real_distribution<f32> dist(-1.0f, 1.0f);
 
     for (const auto &allocation : layer_allocations) {
         const auto fill_range = [&](usize byte_offset, usize byte_size) {
-            const usize start = byte_offset / sizeof(App::NFloat);
-            const usize count = byte_size / sizeof(App::NFloat);
+            const usize start = byte_offset / sizeof(f16);
+            const usize count = byte_size / sizeof(f16);
             for (usize i = 0; i < count; ++i) {
-                init_data[start + i] = float_to_half(dist(rng));
+                init_data[start + i] = f16(dist(rng));
             }
         };
 
@@ -326,9 +302,9 @@ TrainingBuffers create_training_buffers(
     buffers.network_params = create_device_buffer(
         app.device_.get(),
         common_usage,
-        std::span<const App::NFloat>(init_params));
+        std::span<const f16>(init_params));
 
-    std::vector<AdamState> adam_states(app.network_gradient_training_offset_ / sizeof(App::NFloat));
+    std::vector<AdamState> adam_states(app.network_gradient_training_offset_ / sizeof(f16));
     buffers.adam_state = create_device_buffer(
         app.device_.get(),
         common_usage,
@@ -558,7 +534,7 @@ i32 App::run(i32 argc, const char *argv[]) {
     }
 
     const u32 gradient_count =
-        static_cast<u32>((network_gradient_training_offset_ - network_gradient_offset_) / sizeof(NFloat));
+        static_cast<u32>((network_gradient_training_offset_ - network_gradient_offset_) / sizeof(f16));
 
     auto queue = device_->getQueue(rhi::QueueType::Graphics);
     for (u32 iteration = 0; iteration < config_.iteration_count; ++iteration) {

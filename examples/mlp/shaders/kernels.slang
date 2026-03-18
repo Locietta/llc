@@ -29,8 +29,8 @@ void learnGradient(
 void adjustParameters(
     uint tid: SV_DispatchThreadID,
     uniform AdamState *states,
-    uniform NFloat *params,
-    uniform NFloat *gradients,
+    uniform half *params,
+    uniform half *gradients,
     uniform uint count) {
     if (tid >= count)
         return;

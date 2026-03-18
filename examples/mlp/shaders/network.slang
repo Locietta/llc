@@ -9,7 +9,7 @@ public struct MyNetwork {
     public FeedForwardLayer<16, 4> layer2;
 
     [Differentiable]
-    internal MLVec<4> encodeInput(NFloat x, NFloat y) {
+    internal MLVec<4> encodeInput(half x, half y) {
         return MLVec<4>.fromArray(
             {
                 x,
@@ -20,7 +20,7 @@ public struct MyNetwork {
     }
 
     [Differentiable]
-    internal MLVec<4> _eval(NFloat x, NFloat y) {
+    internal MLVec<4> _eval(half x, half y) {
         let encoding = encodeInput(x, y);
         let layer1Output = layer1.eval(encoding);
         let layer2Output = layer2.eval(layer1Output);
@@ -28,7 +28,7 @@ public struct MyNetwork {
     }
 
     [Differentiable]
-    public half4 eval(no_diff NFloat x, no_diff NFloat y) {
+    public half4 eval(no_diff half x, no_diff half y) {
         let mlv = _eval(x, y);
         let arr = mlv.toArray();
         return half4(arr[0], arr[1], arr[2], arr[3]);

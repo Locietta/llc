@@ -12,7 +12,7 @@ public struct FeedForwardLayer<int InputSize, int OutputSize> {
     internal void *biasesGrad;
 
     public MLVec<OutputSize> eval(MLVec<InputSize> input) {
-        var output = coopVecMatMulAdd<NFloat, OutputSize>(
+        var output = coopVecMatMulAdd<half, OutputSize>(
             input.data,
             kComponentType,
             weights,
@@ -21,7 +21,7 @@ public struct FeedForwardLayer<int InputSize, int OutputSize> {
             kComponentType,
             CoopVecMatrixLayout.RowMajor,
             false,
-            InputSize * sizeof(NFloat));
+            InputSize * sizeof(half));
         output = max(output, output * 0.001h);
         return { output };
     }
@@ -48,14 +48,14 @@ public struct FeedForwardLayer<int InputSize, int OutputSize> {
 
         coopVecReduceSumAccumulate(resultGrad.data, (void *) biasesGrad);
 
-        let dInput = coopVecMatMul<NFloat, InputSize>(
+        let dInput = coopVecMatMul<half, InputSize>(
             resultGrad.data,
             kComponentType,
             weights,
             kComponentType,
             CoopVecMatrixLayout.ColumnMajor,
             false,
-            InputSize * sizeof(NFloat));
+            InputSize * sizeof(half));
 
         input = { input.p, { dInput } };
     }

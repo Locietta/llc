@@ -3,10 +3,10 @@ module mlvec;
 import common;
 
 public struct MLVec<int N> : IDifferentiable {
-    public CoopVec<NFloat, N> data;
+    public CoopVec<half, N> data;
     public typealias Differential = MLVec<N>;
 
-    public static MLVec<N> fromArray(NFloat[N] values) {
+    public static MLVec<N> fromArray(half[N] values) {
         MLVec<N> result;
         [ForceUnroll]
         for (int i = 0; i < N; i++)
@@ -14,8 +14,8 @@ public struct MLVec<int N> : IDifferentiable {
         return result;
     }
 
-    internal static NFloat[N] coopVecToArray(CoopVec<NFloat, N> v) {
-        NFloat[N] arr;
+    internal static half[N] coopVecToArray(CoopVec<half, N> v) {
+        half[N] arr;
         [ForceUnroll]
         for (int i = 0; i < N; i++)
             arr[i] = v[i];
@@ -23,21 +23,21 @@ public struct MLVec<int N> : IDifferentiable {
     }
 
     [BackwardDerivativeOf(fromArray)]
-    internal static void fromArrayBwd(inout DifferentialPair<NFloat[N]> values, MLVec<N> dResult) {
+    internal static void fromArrayBwd(inout DifferentialPair<half[N]> values, MLVec<N> dResult) {
         values = diffPair(values.p, coopVecToArray(dResult.data));
     }
 
-    internal static NFloat[N] toArray(MLVec<N> vec) {
+    internal static half[N] toArray(MLVec<N> vec) {
         return coopVecToArray(vec.data);
     }
 
     [BackwardDerivativeOf(toArray)]
-    internal static void toArrayBwd(inout DifferentialPair<MLVec<N>> vec, NFloat[N] dResult) {
+    internal static void toArrayBwd(inout DifferentialPair<MLVec<N>> vec, half[N] dResult) {
         vec = diffPair(vec.p, MLVec<N>.fromArray(dResult));
     }
 
     [Differentiable]
-    public NFloat[N] toArray() {
+    public half[N] toArray() {
         return toArray(this);
     }
 
@@ -46,7 +46,7 @@ public struct MLVec<int N> : IDifferentiable {
     }
 
     public override static Differential dmul<U : __BuiltinRealType>(U s, Differential d) {
-        return { d.data * __realCast<NFloat>(s) };
+        return { d.data * __realCast<half>(s) };
     }
 
     public override static Differential dzero() {

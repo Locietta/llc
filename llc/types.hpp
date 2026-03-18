@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <type_traits>
 
+#include <llc/f16.h>
+
 namespace llc {
 
 namespace types {
