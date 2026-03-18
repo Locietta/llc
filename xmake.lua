@@ -23,6 +23,7 @@ add_rules("slang", {
 })
 
 add_requires("fmt")
+add_requires("glm")
 add_requires("slang", "slang-rhi")
 
 includes("*/xmake.lua")

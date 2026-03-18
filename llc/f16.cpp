@@ -70,4 +70,28 @@ f16::operator float() const noexcept {
     return f16_bits_to_float(bits_);
 }
 
+f16 f16::operator-() const noexcept {
+    return from_bits(static_cast<storage_type>(bits_ ^ 0x8000u));
+}
+
+f16 &f16::operator+=(f16 rhs) noexcept {
+    *this = f16(static_cast<float>(*this) + static_cast<float>(rhs));
+    return *this;
+}
+
+f16 &f16::operator-=(f16 rhs) noexcept {
+    *this = f16(static_cast<float>(*this) - static_cast<float>(rhs));
+    return *this;
+}
+
+f16 &f16::operator*=(f16 rhs) noexcept {
+    *this = f16(static_cast<float>(*this) * static_cast<float>(rhs));
+    return *this;
+}
+
+f16 &f16::operator/=(f16 rhs) noexcept {
+    *this = f16(static_cast<float>(*this) / static_cast<float>(rhs));
+    return *this;
+}
+
 } // namespace llc

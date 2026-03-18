@@ -1,11 +1,11 @@
-
-
 add_requires("stb")
 
 target("llc")
     set_kind("static")
     add_files("*.cpp")
     add_files("pp/*.cpp")
+    add_files("shader/*.slang", {slang_embed = true})
     add_files("shader/**/*.slang", {slang_embed = true})
     add_includedirs("..", {public = true})
     add_packages("slang-rhi", "fmt", "stb")
+    add_packages("glm", {public = true})
