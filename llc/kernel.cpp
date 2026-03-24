@@ -21,11 +21,6 @@ ComPtr<slang::IModule> load_shader_module(
     ComPtr<slang::IModule> slang_module;
     ComPtr<slang::IBlob> diagnostics;
 
-    // // get extension of the filename
-    // const auto extension = std::filesystem::path(filename).extension().string();
-    // // check if the file is binary module
-    // const bool is_binary_module = extension == ".slang-module" || extension == ".slang-lib";
-
     constexpr auto default_search_paths = std::array{
         ".",
         "./shaders",
