@@ -16,34 +16,6 @@ It's assumed [slang](https://github.com/shader-slang/slang) is installed and ava
 scoop install slang
 ```
 
-<details>
-<summary>Tips if you don't use scoop</summary>
-
-The installed tree of slang should look like this:
-
-```
-C:\path\to\scoop\apps\slang\current\
-├── bin
-│   ├── slang.dll
-│   ├── slangc.exe
-│   ├── slangd.exe
-│   └── ...
-├── cmake
-├── include
-│   ├── slang-com-ptr.h
-│   ├── slang.h
-│   └── ...
-├── install.json
-├── lib
-├── LICENSE
-├── manifest.json
-├── README.md
-└── share
-```
-
-Otherwise, (for example if you get slang from Vulkan SDK, the folder structure is different) you may need to adjust `xmake/packages/s/slang/xmake.lua` to fix the include and library paths:
-</details>
-
 ### Building
 
 Git submodules is used for external dependencies that is not in xrepo (yet), so make sure to clone the repository with `--recurse-submodules` option or run `git submodule update --init --recursive` after cloning.
