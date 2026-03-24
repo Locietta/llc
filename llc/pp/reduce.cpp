@@ -25,29 +25,27 @@ constexpr usize k_thread_group_size = 256;
 template <typename T>
 struct ReduceTypeInfo;
 
-// clang-format off
-#define LLC_REDUCE_CONFIG(slang_type, pad_decl, pad_init)                               \
-    "import reduce;\n"                                                                   \
-    "struct Impl : IReduceElement {\n"                                                   \
-    "    " slang_type " value;\n"                                                        \
-    "    " pad_decl "\n"                                                                 \
-    "    __init(int v) { value = " slang_type "(v); " pad_init " }\n"                    \
-    "    __init(" slang_type " v) { value = v; " pad_init " }\n"                         \
-    "    This dadd(This other) { return This(value + other.value); }\n"                  \
-    "    static This waveSum(This a) { return This(WaveActiveSum(a.value)); }\n"         \
-    "};\n"                                                                               \
+#define LLC_REDUCE_CONFIG(slang_type, pad_decl, pad_init)                        \
+    "import reduce;\n"                                                           \
+    "struct Impl : IReduceElement {\n"                                           \
+    "    " slang_type " value;\n"                                                \
+    "    " pad_decl "\n"                                                         \
+    "    __init(int v) { value = " slang_type "(v); " pad_init " }\n"            \
+    "    __init(" slang_type " v) { value = v; " pad_init " }\n"                 \
+    "    This dadd(This other) { return This(value + other.value); }\n"          \
+    "    static This waveSum(This a) { return This(WaveActiveSum(a.value)); }\n" \
+    "};\n"                                                                       \
     "export struct ReduceElement : IReduceElement = Impl;\n"
 
-#define LLC_DEFINE_REDUCE_TYPE_INFO(shader_type, cpp_type, pad_decl, pad_init)           \
-    template <>                                                                          \
-    struct ReduceTypeInfo<cpp_type> final {                                               \
-        static constexpr const char *k_slang_type = shader_type;                          \
-        static constexpr usize k_byte_size = sizeof(cpp_type);                            \
-        static constexpr const char *k_config_name = "reduce_config_" shader_type;        \
-        static constexpr const char *k_config_source =                                    \
-            LLC_REDUCE_CONFIG(shader_type, pad_decl, pad_init);                           \
+#define LLC_DEFINE_REDUCE_TYPE_INFO(shader_type, cpp_type, pad_decl, pad_init)     \
+    template <>                                                                    \
+    struct ReduceTypeInfo<cpp_type> final {                                        \
+        static constexpr const char *k_slang_type = shader_type;                   \
+        static constexpr usize k_byte_size = sizeof(cpp_type);                     \
+        static constexpr const char *k_config_name = "reduce_config_" shader_type; \
+        static constexpr const char *k_config_source =                             \
+            LLC_REDUCE_CONFIG(shader_type, pad_decl, pad_init);                    \
     }
-// clang-format on
 
 LLC_DEFINE_REDUCE_TYPE_INFO("float", f32, "", "");
 LLC_DEFINE_REDUCE_TYPE_INFO("half", f16, "half _pad;", "_pad = half(0);");
