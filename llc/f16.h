@@ -6,61 +6,71 @@
 
 namespace llc {
 
-struct f16 final { // NOLINT(readability-identifier-naming)
+struct f16_storage { // NOLINT(readability-identifier-naming)
     using storage_type = std::uint16_t;
 
-    constexpr f16() noexcept = default;
-    constexpr f16(const f16 &) noexcept = default;
-    constexpr f16 &operator=(const f16 &) noexcept = default;
+    constexpr f16_storage() noexcept = default;
+    constexpr f16_storage(const f16_storage &) noexcept = default;
+    constexpr f16_storage &operator=(const f16_storage &) noexcept = default;
 
-    f16(float value) noexcept;
+    f16_storage(float value) noexcept;
 
-    static constexpr f16 from_bits(storage_type bits) noexcept { return f16(bits, Tag{}); }
+    static constexpr f16_storage from_bits(storage_type bits) noexcept { return f16_storage(bits, Tag{}); }
 
     constexpr storage_type bits() const noexcept { return bits_; }
 
     operator float() const noexcept;
 
-    constexpr f16 operator+() const noexcept { return *this; }
-    f16 operator-() const noexcept;
+    constexpr f16_storage operator+() const noexcept { return *this; }
+    f16_storage operator-() const noexcept;
 
-    f16 &operator+=(f16 rhs) noexcept;
-    f16 &operator-=(f16 rhs) noexcept;
-    f16 &operator*=(f16 rhs) noexcept;
-    f16 &operator/=(f16 rhs) noexcept;
+    f16_storage &operator+=(f16_storage rhs) noexcept;
+    f16_storage &operator-=(f16_storage rhs) noexcept;
+    f16_storage &operator*=(f16_storage rhs) noexcept;
+    f16_storage &operator/=(f16_storage rhs) noexcept;
 
-    friend f16 operator+(f16 lhs, f16 rhs) noexcept {
+    friend f16_storage operator+(f16_storage lhs, f16_storage rhs) noexcept {
         lhs += rhs;
         return lhs;
     }
 
-    friend f16 operator-(f16 lhs, f16 rhs) noexcept {
+    friend f16_storage operator-(f16_storage lhs, f16_storage rhs) noexcept {
         lhs -= rhs;
         return lhs;
     }
 
-    friend f16 operator*(f16 lhs, f16 rhs) noexcept {
+    friend f16_storage operator*(f16_storage lhs, f16_storage rhs) noexcept {
         lhs *= rhs;
         return lhs;
     }
 
-    friend f16 operator/(f16 lhs, f16 rhs) noexcept {
+    friend f16_storage operator/(f16_storage lhs, f16_storage rhs) noexcept {
         lhs /= rhs;
         return lhs;
     }
 
-    constexpr bool operator==(const f16 &) const noexcept = default;
-    auto operator<=>(const f16 &rhs) const noexcept { return static_cast<float>(*this) <=> static_cast<float>(rhs); }
+    constexpr bool operator==(const f16_storage &) const noexcept = default;
+    auto operator<=>(const f16_storage &rhs) const noexcept {
+        return static_cast<float>(*this) <=> static_cast<float>(rhs);
+    }
 
 private:
     struct Tag final {};
 
-    constexpr f16(storage_type bits, Tag) noexcept : bits_(bits) {}
+    constexpr f16_storage(storage_type bits, Tag) noexcept : bits_(bits) {}
 
-    storage_type bits_ = 0;
+    storage_type bits_;
 };
 
-static_assert(sizeof(f16) == sizeof(std::uint16_t));
+static_assert(sizeof(f16_storage) == 2);
+
+struct alignas(4) f16 final : f16_storage { // NOLINT(readability-identifier-naming)
+    using f16_storage::f16_storage;
+    constexpr f16() noexcept = default;
+    constexpr f16(const f16_storage &s) noexcept : f16_storage(s) {}
+};
+
+static_assert(sizeof(f16) == 4);
 
 } // namespace llc
 
@@ -69,7 +79,7 @@ namespace std {
 // This specialization mirrors std::numeric_limits naming from the standard.
 // NOLINTBEGIN(readability-identifier-naming)
 template <>
-class numeric_limits<llc::f16> final {
+class numeric_limits<llc::f16_storage> {
 public:
     static constexpr bool is_specialized = true;
     static constexpr bool is_signed = true;
@@ -95,16 +105,19 @@ public:
     static constexpr bool traps = false;
     static constexpr bool tinyness_before = false;
 
-    static constexpr llc::f16 min() noexcept { return llc::f16::from_bits(0x0400u); }
-    static constexpr llc::f16 lowest() noexcept { return llc::f16::from_bits(0xfbffu); }
-    static constexpr llc::f16 max() noexcept { return llc::f16::from_bits(0x7bffu); }
-    static constexpr llc::f16 epsilon() noexcept { return llc::f16::from_bits(0x1400u); }
-    static constexpr llc::f16 round_error() noexcept { return llc::f16::from_bits(0x3800u); }
-    static constexpr llc::f16 infinity() noexcept { return llc::f16::from_bits(0x7c00u); }
-    static constexpr llc::f16 quiet_NaN() noexcept { return llc::f16::from_bits(0x7e00u); }
-    static constexpr llc::f16 signaling_NaN() noexcept { return llc::f16::from_bits(0x7d00u); }
-    static constexpr llc::f16 denorm_min() noexcept { return llc::f16::from_bits(0x0001u); }
+    static constexpr llc::f16_storage min() noexcept { return llc::f16_storage::from_bits(0x0400u); }
+    static constexpr llc::f16_storage lowest() noexcept { return llc::f16_storage::from_bits(0xfbffu); }
+    static constexpr llc::f16_storage max() noexcept { return llc::f16_storage::from_bits(0x7bffu); }
+    static constexpr llc::f16_storage epsilon() noexcept { return llc::f16_storage::from_bits(0x1400u); }
+    static constexpr llc::f16_storage round_error() noexcept { return llc::f16_storage::from_bits(0x3800u); }
+    static constexpr llc::f16_storage infinity() noexcept { return llc::f16_storage::from_bits(0x7c00u); }
+    static constexpr llc::f16_storage quiet_NaN() noexcept { return llc::f16_storage::from_bits(0x7e00u); }
+    static constexpr llc::f16_storage signaling_NaN() noexcept { return llc::f16_storage::from_bits(0x7d00u); }
+    static constexpr llc::f16_storage denorm_min() noexcept { return llc::f16_storage::from_bits(0x0001u); }
 };
+
+template <>
+class numeric_limits<llc::f16> : public numeric_limits<llc::f16_storage> {};
 // NOLINTEND(readability-identifier-naming)
 
 } // namespace std
