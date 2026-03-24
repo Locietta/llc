@@ -1,6 +1,8 @@
 #include "reduce.h"
 
+#include <cassert>
 #include <mutex>
+#include <string>
 #include <vector>
 
 #include <slang-rhi/shader-cursor.h>
@@ -18,95 +20,104 @@ using namespace llc::types;
 extern "C" const unsigned char _binary_reduce_slang_module_start[]; // NOLINT
 extern "C" const unsigned char _binary_reduce_slang_module_end[];   // NOLINT
 
-constexpr u32 k_thread_group_size = 256;
+constexpr usize k_thread_group_size = 256;
 
-enum class ReducePipelineKind : u32 {
-    BUFFER,
-    TEXTURE,
-};
+template <typename T>
+struct ReduceTypeInfo;
 
-struct EmbeddedModuleDesc final {
-    const char *module_name = nullptr;
-    const unsigned char *begin = nullptr;
-    const unsigned char *end = nullptr;
-};
+// clang-format off
+#define LLC_REDUCE_CONFIG(slang_type, pad_decl, pad_init)                               \
+    "import reduce;\n"                                                                   \
+    "struct Impl : IReduceElement {\n"                                                   \
+    "    " slang_type " value;\n"                                                        \
+    "    " pad_decl "\n"                                                                 \
+    "    __init(int v) { value = " slang_type "(v); " pad_init " }\n"                    \
+    "    __init(" slang_type " v) { value = v; " pad_init " }\n"                         \
+    "    This dadd(This other) { return This(value + other.value); }\n"                  \
+    "    static This waveSum(This a) { return This(WaveActiveSum(a.value)); }\n"         \
+    "};\n"                                                                               \
+    "export struct ReduceElement : IReduceElement = Impl;\n"
 
-struct CachedPipeline final {
-    rhi::IDevice *device = nullptr;
-    ReducePipelineKind kind = ReducePipelineKind::BUFFER;
-    Slang::ComPtr<rhi::IComputePipeline> pipeline;
-};
-
-std::mutex g_pipeline_mutex;
-std::vector<CachedPipeline> g_pipelines;
-
-u32 next_reduce_count(u32 count) noexcept {
-    if (count == 0) return 0;
-    return divide_and_round_up(count, k_thread_group_size * 2);
-}
-
-u64 scratch_size_for_element_count(u32 count) noexcept {
-    u64 scratch_size = 0;
-    for (u32 level_count = next_reduce_count(count); level_count > 1; level_count = next_reduce_count(level_count)) {
-        scratch_size += sizeof(f32) * static_cast<u64>(level_count);
+#define LLC_DEFINE_REDUCE_TYPE_INFO(shader_type, cpp_type, pad_decl, pad_init)           \
+    template <>                                                                          \
+    struct ReduceTypeInfo<cpp_type> final {                                               \
+        static constexpr const char *k_slang_type = shader_type;                          \
+        static constexpr usize k_byte_size = sizeof(cpp_type);                            \
+        static constexpr const char *k_config_name = "reduce_config_" shader_type;        \
+        static constexpr const char *k_config_source =                                    \
+            LLC_REDUCE_CONFIG(shader_type, pad_decl, pad_init);                           \
     }
-    return scratch_size;
-}
+// clang-format on
 
-EmbeddedModuleDesc reduce_module_desc() noexcept {
-    return {
-        .module_name = "reduce",
-        .begin = _binary_reduce_slang_module_start,
-        .end = _binary_reduce_slang_module_end,
-    };
-}
+LLC_DEFINE_REDUCE_TYPE_INFO("float", f32, "", "");
+LLC_DEFINE_REDUCE_TYPE_INFO("half", f16, "half _pad;", "_pad = half(0);");
+LLC_DEFINE_REDUCE_TYPE_INFO("float2", f32x2, "", "");
+LLC_DEFINE_REDUCE_TYPE_INFO("float3", f32x3, "", "");
+LLC_DEFINE_REDUCE_TYPE_INFO("float4", f32x4, "", "");
+LLC_DEFINE_REDUCE_TYPE_INFO("vector<half, 2>", f16x2, "", "");
+LLC_DEFINE_REDUCE_TYPE_INFO("vector<half, 3>", f16x3, "half _pad;", "_pad = half(0);");
+LLC_DEFINE_REDUCE_TYPE_INFO("vector<half, 4>", f16x4, "", "");
 
-Slang::ComPtr<slang::IModule> load_embedded_shader_module(rhi::IDevice *device) {
-    const auto desc = reduce_module_desc();
-    if (!desc.module_name || !desc.begin || !desc.end || desc.begin >= desc.end) {
-        return nullptr;
-    }
-
-    const auto shader_ir = Slang::ComPtr<FileBlob>(new FileBlob(std::span<const byte>(
-        reinterpret_cast<const byte *>(desc.begin),
-        static_cast<usize>(desc.end - desc.begin))));
+Slang::ComPtr<slang::IModule> load_embedded_module(rhi::IDevice *device) {
+    auto shader_ir = Slang::ComPtr<FileBlob>(new FileBlob(std::span<const byte>(
+        reinterpret_cast<const byte *>(_binary_reduce_slang_module_start),
+        reinterpret_cast<const byte *>(_binary_reduce_slang_module_end))));
 
     Slang::ComPtr<slang::IBlob> diagnostics;
     auto *module_ptr = device->getSlangSession()->loadModuleFromIRBlob(
-        desc.module_name,
-        desc.module_name,
+        "reduce",
+        "reduce",
         shader_ir.get(),
         diagnostics.writeRef());
     diagnose_if_needed(diagnostics.get());
     return Slang::ComPtr<slang::IModule>(module_ptr);
 }
 
-const char *entry_point_name(ReducePipelineKind kind) noexcept {
-    switch (kind) {
-        case ReducePipelineKind::BUFFER: return "reduceBuffer";
-        case ReducePipelineKind::TEXTURE: return "reduceTexture";
-        default: return nullptr;
-    }
-}
+Slang::ComPtr<rhi::IComputePipeline> create_linked_pipeline(
+    rhi::IDevice *device,
+    slang::IModule *main_module,
+    const std::string &config_name,
+    const std::string &config_source,
+    const char *entry_point_name) {
 
-Slang::ComPtr<rhi::IComputePipeline> create_reduce_pipeline(rhi::IDevice *device, ReducePipelineKind kind) {
-    auto module = load_embedded_shader_module(device);
-    if (!module) return nullptr;
+    if (!device || !main_module) return nullptr;
+
+    auto session = device->getSlangSession();
+
+    Slang::ComPtr<slang::IBlob> diagnostics;
+    slang::IModule *config_module = session->loadModuleFromSourceString(
+        config_name.c_str(),
+        config_name.c_str(),
+        config_source.c_str(),
+        diagnostics.writeRef());
+    diagnose_if_needed(diagnostics.get());
+    if (!config_module) return nullptr;
 
     Slang::ComPtr<slang::IEntryPoint> entry_point;
-    if (SLANG_FAILED(module->findEntryPointByName(entry_point_name(kind), entry_point.writeRef()))) {
+    if (SLANG_FAILED(main_module->findEntryPointByName(entry_point_name, entry_point.writeRef()))) {
         return nullptr;
     }
 
-    Slang::ComPtr<slang::IBlob> diagnostics;
-    Slang::ComPtr<slang::IComponentType> linked_program;
-    if (SLANG_FAILED(entry_point->link(linked_program.writeRef(), diagnostics.writeRef()))) {
+    slang::IComponentType *components[] = {main_module, config_module, entry_point.get()};
+    Slang::ComPtr<slang::IComponentType> composed;
+    diagnostics = nullptr;
+    if (SLANG_FAILED(session->createCompositeComponentType(
+            components,
+            std::size(components),
+            composed.writeRef(),
+            diagnostics.writeRef()))) {
         diagnose_if_needed(diagnostics.get());
         return nullptr;
     }
-    diagnose_if_needed(diagnostics.get());
 
-    auto program = device->createShaderProgram(linked_program);
+    Slang::ComPtr<slang::IComponentType> linked;
+    diagnostics = nullptr;
+    if (SLANG_FAILED(composed->link(linked.writeRef(), diagnostics.writeRef()))) {
+        diagnose_if_needed(diagnostics.get());
+        return nullptr;
+    }
+
+    auto program = device->createShaderProgram(linked);
     if (!program) return nullptr;
 
     rhi::ComputePipelineDesc desc{};
@@ -114,281 +125,149 @@ Slang::ComPtr<rhi::IComputePipeline> create_reduce_pipeline(rhi::IDevice *device
     return device->createComputePipeline(desc);
 }
 
-Slang::ComPtr<rhi::IComputePipeline> get_reduce_pipeline(rhi::IDevice *device, ReducePipelineKind kind) {
+struct CachedPipeline final {
+    rhi::IDevice *device = nullptr;
+    std::string key;
+    Slang::ComPtr<rhi::IComputePipeline> pipeline;
+};
+
+struct PipelineCache final {
+    std::mutex mutex;
+    std::vector<CachedPipeline> entries;
+};
+
+PipelineCache g_buffer_pipelines;
+
+template <typename CreateFn>
+Slang::ComPtr<rhi::IComputePipeline>
+get_cached_pipeline(PipelineCache &cache, rhi::IDevice *device, std::string key, CreateFn create_fn) {
     {
-        std::scoped_lock lock(g_pipeline_mutex);
-        for (const auto &cached : g_pipelines) {
-            if (cached.device == device && cached.kind == kind) {
+        std::scoped_lock lock(cache.mutex);
+        for (const auto &cached : cache.entries) {
+            if (cached.device == device && cached.key == key) {
                 return cached.pipeline;
             }
         }
     }
 
-    auto pipeline = create_reduce_pipeline(device, kind);
+    auto pipeline = create_fn(device);
     if (!pipeline) return nullptr;
 
-    std::scoped_lock lock(g_pipeline_mutex);
-    for (const auto &cached : g_pipelines) {
-        if (cached.device == device && cached.kind == kind) {
+    std::scoped_lock lock(cache.mutex);
+    for (const auto &cached : cache.entries) {
+        if (cached.device == device && cached.key == key) {
             return cached.pipeline;
         }
     }
-    g_pipelines.push_back({device, kind, pipeline});
+    cache.entries.push_back({device, std::move(key), pipeline});
     return pipeline;
 }
 
+constexpr usize next_reduce_count(usize count) noexcept {
+    return divide_and_round_up(count, k_thread_group_size * 2);
+}
+
 SlangResult encode_buffer_pass(
-    rhi::IDevice *device,
     rhi::ICommandEncoder *encoder,
+    rhi::IComputePipeline *pipeline,
     rhi::IBuffer *source,
-    u64 source_offset,
     u32 count,
     rhi::IBuffer *result,
-    u64 result_offset) {
-
-    auto pipeline = get_reduce_pipeline(device, ReducePipelineKind::BUFFER);
-    if (!pipeline) return SLANG_FAIL;
+    u32 element_byte_size) {
 
     const u32 group_count = next_reduce_count(count);
     auto *pass = encoder->beginComputePass();
-    auto root_object = pass->bindPipeline(pipeline.get());
+    auto root_object = pass->bindPipeline(pipeline);
     auto cursor = rhi::ShaderCursor(root_object);
     SLANG_RETURN_ON_FAIL(cursor["source"].setBinding(rhi::Binding(
         source,
-        rhi::BufferRange{source_offset, sizeof(f32) * static_cast<u64>(count)})));
+        rhi::BufferRange{0, static_cast<u64>(element_byte_size) * static_cast<u64>(count)})));
     SLANG_RETURN_ON_FAIL(cursor["result"].setBinding(rhi::Binding(
         result,
-        rhi::BufferRange{result_offset, sizeof(f32) * static_cast<u64>(group_count)})));
-    SLANG_RETURN_ON_FAIL(cursor["sourceCount"].setData(&count, sizeof(count)));
+        rhi::BufferRange{0, static_cast<u64>(element_byte_size) * static_cast<u64>(group_count)})));
     pass->dispatchCompute(group_count, 1, 1);
     pass->end();
     return SLANG_OK;
-}
-
-SlangResult encode_texture_pass(
-    rhi::IDevice *device,
-    rhi::ICommandEncoder *encoder,
-    rhi::ITexture *source,
-    u32 width,
-    u32 height,
-    rhi::IBuffer *result,
-    u64 result_offset) {
-
-    auto pipeline = get_reduce_pipeline(device, ReducePipelineKind::TEXTURE);
-    if (!pipeline) return SLANG_FAIL;
-
-    const u32 element_count = width * height;
-    const u32 group_count = next_reduce_count(element_count);
-    auto *pass = encoder->beginComputePass();
-    auto root_object = pass->bindPipeline(pipeline.get());
-    auto cursor = rhi::ShaderCursor(root_object);
-    const u32 texture_size[2] = {width, height};
-    SLANG_RETURN_ON_FAIL(cursor["sourceTexture"].setBinding(source));
-    SLANG_RETURN_ON_FAIL(cursor["result"].setBinding(rhi::Binding(
-        result,
-        rhi::BufferRange{result_offset, sizeof(f32) * static_cast<u64>(group_count)})));
-    SLANG_RETURN_ON_FAIL(cursor["textureSize"].setData(texture_size, sizeof(texture_size)));
-    SLANG_RETURN_ON_FAIL(cursor["sourceCount"].setData(&element_count, sizeof(element_count)));
-    pass->dispatchCompute(group_count, 1, 1);
-    pass->end();
-    return SLANG_OK;
-}
-
-SlangResult encode_buffer_reduce_internal(
-    rhi::IDevice *device,
-    rhi::ICommandEncoder *encoder,
-    rhi::IBuffer *source,
-    u64 source_offset,
-    u32 count,
-    rhi::IBuffer *scratch,
-    u64 scratch_offset,
-    rhi::IBuffer *result) {
-
-    if (count == 0) {
-        encoder->clearBuffer(result, rhi::BufferRange{0, sizeof(f32)});
-        return SLANG_OK;
-    }
-    if (count == 1) {
-        encoder->copyBuffer(result, 0, source, source_offset, sizeof(f32));
-        return SLANG_OK;
-    }
-
-    u32 level_count = count;
-    rhi::IBuffer *level_source = source;
-    u64 level_source_offset = source_offset;
-    u64 next_scratch_offset = scratch_offset;
-
-    while (true) {
-        const u32 output_count = next_reduce_count(level_count);
-        const bool final_level = output_count == 1;
-        auto *level_result = final_level ? result : scratch;
-        const u64 level_result_offset = final_level ? 0 : next_scratch_offset;
-        SLANG_RETURN_ON_FAIL(encode_buffer_pass(
-            device,
-            encoder,
-            level_source,
-            level_source_offset,
-            level_count,
-            level_result,
-            level_result_offset));
-        if (final_level) {
-            return SLANG_OK;
-        }
-        level_source = scratch;
-        level_source_offset = next_scratch_offset;
-        level_count = output_count;
-        next_scratch_offset += sizeof(f32) * static_cast<u64>(output_count);
-    }
 }
 
 } // namespace
 
-u64 reduce_sum_scratch_size_f32(u32 count) {
-    return scratch_size_for_element_count(count);
+template <typename T>
+usize reduce_sum_scratch_size(usize count) {
+    return next_reduce_count(count) * ReduceTypeInfo<T>::k_byte_size;
 }
 
-SlangResult encode_reduce_sum_f32(
+template <typename T>
+SlangResult encode_reduce_sum(
     rhi::IDevice *device,
     rhi::ICommandEncoder *encoder,
     rhi::IBuffer *source,
-    u32 count,
-    rhi::IBuffer *scratch,
-    u64 scratch_offset,
+    usize count,
     rhi::IBuffer *result) {
 
-    if (!device || !encoder || !source || !result) {
-        return SLANG_E_INVALID_ARG;
-    }
-    if (reduce_sum_scratch_size_f32(count) > 0 && !scratch) {
-        return SLANG_E_INVALID_ARG;
-    }
+    assert(device && encoder && source && result);
 
-    return encode_buffer_reduce_internal(device, encoder, source, 0, count, scratch, scratch_offset, result);
+    using Info = ReduceTypeInfo<T>;
+    auto pipeline = get_cached_pipeline(g_buffer_pipelines, device, Info::k_slang_type, [](rhi::IDevice *d) {
+        auto module = load_embedded_module(d);
+        if (!module) return Slang::ComPtr<rhi::IComputePipeline>{};
+        return create_linked_pipeline(d, module.get(), Info::k_config_name, Info::k_config_source, "reduce");
+    });
+    if (!pipeline) return SLANG_FAIL;
+
+    constexpr u32 elem_size = Info::k_byte_size;
+    const auto initial_count = static_cast<u32>(count);
+
+    for (u32 l = initial_count; l > 1; l = next_reduce_count(l)) {
+        auto *src = (l == initial_count) ? source : result;
+        SLANG_RETURN_ON_FAIL(encode_buffer_pass(encoder, pipeline.get(), src, l, result, elem_size));
+    }
+    return SLANG_OK;
 }
 
-f32 reduce_sum_f32(rhi::IDevice *device, rhi::IBuffer *source, u32 count) {
-    if (!device || !source) return 0.0f;
+template <typename T>
+T reduce_sum(rhi::IDevice *device, rhi::IBuffer *source, usize count) {
+    assert(device && source);
 
-    const auto scratch_size = reduce_sum_scratch_size_f32(count);
-    auto scratch = scratch_size == 0 ?
-                       Slang::ComPtr<rhi::IBuffer>() :
-                       create_structured_buffer(
-                           device,
-                           scratch_size,
-                           sizeof(f32),
-                           rhi::BufferUsage::ShaderResource | rhi::BufferUsage::UnorderedAccess);
+    constexpr u32 elem_size = ReduceTypeInfo<T>::k_byte_size;
+    const auto result_size = reduce_sum_scratch_size<T>(count);
     auto result = create_structured_buffer(
         device,
-        sizeof(f32),
-        sizeof(f32),
-        rhi::BufferUsage::ShaderResource | rhi::BufferUsage::UnorderedAccess | rhi::BufferUsage::CopySource |
-            rhi::BufferUsage::CopyDestination,
+        result_size,
+        elem_size,
+        rhi::BufferUsage::ShaderResource | rhi::BufferUsage::UnorderedAccess |
+            rhi::BufferUsage::CopySource | rhi::BufferUsage::CopyDestination,
         nullptr);
-
-    if (!result || (scratch_size > 0 && !scratch)) return 0.0f;
 
     auto queue = device->getQueue(rhi::QueueType::Graphics);
     auto encoder = queue->createCommandEncoder();
-    if (SLANG_FAILED(encode_reduce_sum_f32(device, encoder.get(), source, count, scratch.get(), 0, result.get()))) {
-        return 0.0f;
-    }
+    encode_reduce_sum<T>(device, encoder.get(), source, count, result.get());
 
     auto command_buffer = encoder->finish();
     queue->submit(command_buffer);
     queue->waitOnHost();
 
-    auto readback = read_buffer<f32>(device, result.get(), 0, 1);
-    return readback ? readback[0] : 0.0f;
+    auto readback = read_buffer<T>(device, result.get(), 0, 1);
+    return readback[0];
 }
 
-u64 reduce_sum_texture_r32f_scratch_size(u32 width, u32 height) {
-    if (width == 0 || height == 0) return 0;
-    return reduce_sum_scratch_size_f32(width * height);
-}
+// clang-format off
+#define LLC_INSTANTIATE_REDUCE(T)                                                                                     \
+    template usize reduce_sum_scratch_size<T>(usize);                                                                 \
+    template SlangResult encode_reduce_sum<T>(                                                                        \
+        rhi::IDevice *, rhi::ICommandEncoder *, rhi::IBuffer *, usize, rhi::IBuffer *);                               \
+    template T reduce_sum<T>(rhi::IDevice *, rhi::IBuffer *, usize);
 
-SlangResult encode_reduce_sum_texture_r32f(
-    rhi::IDevice *device,
-    rhi::ICommandEncoder *encoder,
-    rhi::ITexture *source,
-    u32 width,
-    u32 height,
-    rhi::IBuffer *scratch,
-    u64 scratch_offset,
-    rhi::IBuffer *result) {
+LLC_INSTANTIATE_REDUCE(f32)
+LLC_INSTANTIATE_REDUCE(f16)
+LLC_INSTANTIATE_REDUCE(f32x2)
+LLC_INSTANTIATE_REDUCE(f32x3)
+LLC_INSTANTIATE_REDUCE(f32x4)
+LLC_INSTANTIATE_REDUCE(f16x2)
+LLC_INSTANTIATE_REDUCE(f16x3)
+LLC_INSTANTIATE_REDUCE(f16x4)
+// clang-format on
 
-    if (!device || !encoder || !source || !result || width == 0 || height == 0) {
-        return SLANG_E_INVALID_ARG;
-    }
-
-    const u32 element_count = width * height;
-    const auto scratch_size = reduce_sum_texture_r32f_scratch_size(width, height);
-    if (scratch_size > 0 && !scratch) {
-        return SLANG_E_INVALID_ARG;
-    }
-    if (element_count == 1) {
-        return encode_texture_pass(device, encoder, source, width, height, result, 0);
-    }
-
-    const u32 partial_count = next_reduce_count(element_count);
-    if (partial_count == 1) {
-        return encode_texture_pass(device, encoder, source, width, height, result, 0);
-    }
-
-    SLANG_RETURN_ON_FAIL(encode_texture_pass(device, encoder, source, width, height, scratch, scratch_offset));
-    return encode_buffer_reduce_internal(
-        device,
-        encoder,
-        scratch,
-        scratch_offset,
-        partial_count,
-        scratch,
-        scratch_offset + sizeof(f32) * static_cast<u64>(partial_count),
-        result);
-}
-
-f32 reduce_sum_texture_r32f(rhi::IDevice *device, rhi::ITexture *source, u32 width, u32 height) {
-    if (!device || !source || width == 0 || height == 0) {
-        return 0.0f;
-    }
-
-    const auto scratch_size = reduce_sum_texture_r32f_scratch_size(width, height);
-    auto scratch = scratch_size == 0 ?
-                       Slang::ComPtr<rhi::IBuffer>() :
-                       create_structured_buffer(
-                           device,
-                           scratch_size,
-                           sizeof(f32),
-                           rhi::BufferUsage::ShaderResource | rhi::BufferUsage::UnorderedAccess);
-    auto result = create_structured_buffer(
-        device,
-        sizeof(f32),
-        sizeof(f32),
-        rhi::BufferUsage::ShaderResource | rhi::BufferUsage::UnorderedAccess | rhi::BufferUsage::CopySource |
-            rhi::BufferUsage::CopyDestination,
-        nullptr);
-
-    if (!result || (scratch_size > 0 && !scratch)) return 0.0f;
-
-    auto queue = device->getQueue(rhi::QueueType::Graphics);
-    auto encoder = queue->createCommandEncoder();
-    if (SLANG_FAILED(encode_reduce_sum_texture_r32f(
-            device,
-            encoder.get(),
-            source,
-            width,
-            height,
-            scratch.get(),
-            0,
-            result.get()))) {
-        return 0.0f;
-    }
-
-    auto command_buffer = encoder->finish();
-    queue->submit(command_buffer);
-    queue->waitOnHost();
-
-    auto readback = read_buffer<f32>(device, result.get(), 0, 1);
-    return readback ? readback[0] : 0.0f;
-}
+#undef LLC_INSTANTIATE_REDUCE
 
 } // namespace llc::pp

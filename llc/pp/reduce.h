@@ -7,31 +7,18 @@
 
 namespace llc::pp {
 
-u64 reduce_sum_scratch_size_f32(u32 count);
+template <typename T>
+usize reduce_sum_scratch_size(usize count);
 
-SlangResult encode_reduce_sum_f32(
+template <typename T>
+SlangResult encode_reduce_sum(
     rhi::IDevice *device,
     rhi::ICommandEncoder *encoder,
     rhi::IBuffer *source,
-    u32 count,
-    rhi::IBuffer *scratch,
-    u64 scratch_offset,
+    usize count,
     rhi::IBuffer *result);
 
-f32 reduce_sum_f32(rhi::IDevice *device, rhi::IBuffer *source, u32 count);
-
-u64 reduce_sum_texture_r32f_scratch_size(u32 width, u32 height);
-
-SlangResult encode_reduce_sum_texture_r32f(
-    rhi::IDevice *device,
-    rhi::ICommandEncoder *encoder,
-    rhi::ITexture *source,
-    u32 width,
-    u32 height,
-    rhi::IBuffer *scratch,
-    u64 scratch_offset,
-    rhi::IBuffer *result);
-
-f32 reduce_sum_texture_r32f(rhi::IDevice *device, rhi::ITexture *source, u32 width, u32 height);
+template <typename T>
+T reduce_sum(rhi::IDevice *device, rhi::IBuffer *source, usize count);
 
 } // namespace llc::pp

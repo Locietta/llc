@@ -1,65 +1,48 @@
 module reduce;
 
-public
-StructuredBuffer<float> source;
-public
-RWStructuredBuffer<float> result;
-public
-Texture2D<float> sourceTexture;
-public
-uint sourceCount;
-public
-uint2 textureSize;
+public interface IReduceElement {
+    __init(int v);
+    This dadd(This other);
+    static This waveSum(This a);
+};
 
-static const uint THREAD_GROUP_SIZE = 256;
-groupshared float waveSums[32];
-
-float loadTextureValue(uint linearIndex) {
-    uint2 coord = uint2(linearIndex % textureSize.x, linearIndex / textureSize.x);
-    return sourceTexture[coord];
+T operator +<T : IReduceElement>(T a, T b) {
+    return a.dadd(b);
 }
 
-[shader("compute")]
-    [numthreads(THREAD_GROUP_SIZE, 1, 1)] void
-    reduceBuffer(uint3 groupThreadID : SV_GroupThreadID, uint3 groupID : SV_GroupID) {
-        uint localIndex = groupThreadID.x;
-        uint index = groupID.x * THREAD_GROUP_SIZE * 2 + localIndex;
-        float sum = index < sourceCount ? source[index] : 0.0f;
-        sum += index + THREAD_GROUP_SIZE < sourceCount ? source[index + THREAD_GROUP_SIZE] : 0.0f;
-        uint laneIndex = WaveGetLaneIndex();
-        uint waveIndex = localIndex / 32;
-        sum = WaveActiveSum(sum);
-        if (WaveIsFirstLane()) {
-            waveSums[waveIndex] = sum;
-        }
-        GroupMemoryBarrierWithGroupSync();
-        sum = localIndex < THREAD_GROUP_SIZE / 32 ? waveSums[laneIndex] : 0.0f;
-        if (waveIndex == 0) {
-            sum = WaveActiveSum(sum);
-        }
-        if (localIndex == 0) {
-            result[groupID.x] = sum;
-        }
-    }
+extern struct ReduceElement : IReduceElement;
 
-        [shader("compute")]
-        [numthreads(THREAD_GROUP_SIZE, 1, 1)] void reduceTexture(uint3 groupThreadID : SV_GroupThreadID, uint3 groupID : SV_GroupID) {
+static const uint THREAD_GROUP_SIZE = 256;
+static const uint WARP_SIZE = 32;
+static const uint WAVE_PER_GROUP = THREAD_GROUP_SIZE / WARP_SIZE;
+
+groupshared ReduceElement g_wave_sums[WAVE_PER_GROUP];
+
+[shader("compute")]
+[numthreads(THREAD_GROUP_SIZE, 1, 1)]
+void reduce(
+    uint3 groupThreadID: SV_GroupThreadID,
+    uint3 groupID: SV_GroupID,
+    uniform StructuredBuffer<ReduceElement> source,
+    uniform RWStructuredBuffer<ReduceElement> result) {
+
     uint localIndex = groupThreadID.x;
     uint index = groupID.x * THREAD_GROUP_SIZE * 2 + localIndex;
-    float sum = index < sourceCount ? loadTextureValue(index) : 0.0f;
-    sum += index + THREAD_GROUP_SIZE < sourceCount ? loadTextureValue(index + THREAD_GROUP_SIZE) : 0.0f;
+    uint num_elements = source.getCount();
+
+    var sum = index < num_elements ? source[index] : ReduceElement(0);
+    sum = sum + ((index + THREAD_GROUP_SIZE < num_elements) ? source[index + THREAD_GROUP_SIZE] : ReduceElement(0));
+
     uint laneIndex = WaveGetLaneIndex();
-    uint waveIndex = localIndex / 32;
-    sum = WaveActiveSum(sum);
-    if (WaveIsFirstLane()) {
-        waveSums[waveIndex] = sum;
-    }
+    uint waveIndex = localIndex / WARP_SIZE;
+
+    sum = ReduceElement.waveSum(sum);
+    if (WaveIsFirstLane()) g_wave_sums[waveIndex] = sum;
+
+    // Synchronize all threads in the group to ensure all wave reductions are visible
     GroupMemoryBarrierWithGroupSync();
-    sum = localIndex < THREAD_GROUP_SIZE / 32 ? waveSums[laneIndex] : 0.0f;
-    if (waveIndex == 0) {
-        sum = WaveActiveSum(sum);
-    }
-    if (localIndex == 0) {
-        result[groupID.x] = sum;
-    }
+
+    sum = (localIndex < WAVE_PER_GROUP) ? g_wave_sums[laneIndex] : ReduceElement(0);
+    if (waveIndex == 0) sum = ReduceElement.waveSum(sum);
+    if (localIndex == 0) result[groupID.x] = sum;
 }
