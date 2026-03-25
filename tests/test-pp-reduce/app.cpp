@@ -17,12 +17,62 @@ const auto k_buffer_usage = rhi::BufferUsage::ShaderResource | rhi::BufferUsage:
 
 constexpr u32 k_element_count = 1 << 25;
 constexpr u32 k_f16_element_count = 1 << 12; // 4096 — keeps partial sums within f16 range
+constexpr f64 k_tolerance = 0.001;           // 0.1% relative error
+
+/// Returns relative error |gpu - cpu| / |cpu|, or absolute error if cpu is near zero.
+f64 relative_error(f64 gpu, f64 cpu) {
+    const f64 abs_err = std::abs(gpu - cpu);
+    const f64 denom = std::abs(cpu);
+    return denom > 1e-12 ? abs_err / denom : abs_err;
+}
+
+/// Checks scalar result, prints and returns true on failure.
+bool check_scalar(const char *label, f64 gpu, f64 cpu, i32 &failures) {
+    const f64 rel = relative_error(gpu, cpu);
+    const bool ok = rel <= k_tolerance;
+    fmt::println("{}: gpu={} cpu={:.6g} rel_err={:.6e} [{}]", label, gpu, cpu, rel, ok ? "PASS" : "FAIL");
+    if (!ok) ++failures;
+    return ok;
+}
+
+/// Checks each component of a 2D vector result.
+bool check_vec2(const char *label, f64x2 gpu, f64x2 cpu, i32 &failures) {
+    const f64 r0 = relative_error(gpu.x, cpu.x);
+    const f64 r1 = relative_error(gpu.y, cpu.y);
+    const bool ok = r0 <= k_tolerance && r1 <= k_tolerance;
+    fmt::println("{}: rel_err=[{:.6e}, {:.6e}] [{}]", label, r0, r1, ok ? "PASS" : "FAIL");
+    if (!ok) ++failures;
+    return ok;
+}
+
+/// Checks each component of a 3D vector result.
+bool check_vec3(const char *label, f64x3 gpu, f64x3 cpu, i32 &failures) {
+    const f64 r0 = relative_error(gpu.x, cpu.x);
+    const f64 r1 = relative_error(gpu.y, cpu.y);
+    const f64 r2 = relative_error(gpu.z, cpu.z);
+    const bool ok = r0 <= k_tolerance && r1 <= k_tolerance && r2 <= k_tolerance;
+    fmt::println("{}: rel_err=[{:.6e}, {:.6e}, {:.6e}] [{}]", label, r0, r1, r2, ok ? "PASS" : "FAIL");
+    if (!ok) ++failures;
+    return ok;
+}
+
+/// Checks each component of a 4D vector result.
+bool check_vec4(const char *label, f64x4 gpu, f64x4 cpu, i32 &failures) {
+    const f64 r0 = relative_error(gpu.x, cpu.x);
+    const f64 r1 = relative_error(gpu.y, cpu.y);
+    const f64 r2 = relative_error(gpu.z, cpu.z);
+    const f64 r3 = relative_error(gpu.w, cpu.w);
+    const bool ok = r0 <= k_tolerance && r1 <= k_tolerance && r2 <= k_tolerance && r3 <= k_tolerance;
+    fmt::println("{}: rel_err=[{:.6e}, {:.6e}, {:.6e}, {:.6e}] [{}]", label, r0, r1, r2, r3, ok ? "PASS" : "FAIL");
+    if (!ok) ++failures;
+    return ok;
+}
 
 } // namespace
 
 i32 App::run(i32 argc, const char *argv[]) {
     cxxopts::Options options("test-pp-reduce", "Verify llc::pp::reduce generic instantiations");
-    options.add_options()("backend", "RHI backend [dx|vk|auto]", cxxopts::value<std::string>()->default_value("auto"));
+    options.add_options()("backend", "RHI backend [dx|vk|cpu|auto]", cxxopts::value<std::string>()->default_value("auto"));
     options.parse_positional({"backend"});
     const auto result = options.parse(argc, argv);
     const std::string backend_name = result["backend"].as<std::string>();
@@ -36,6 +86,8 @@ i32 App::run(i32 argc, const char *argv[]) {
     } else if (backend_name == "dx") {
         device_desc.slang.targetProfile = "sm_6_6";
         device_desc.deviceType = rhi::DeviceType::D3D12;
+    } else if (backend_name == "cpu") {
+        device_desc.deviceType = rhi::DeviceType::CPU;
     } else {
         fmt::println("Unsupported backend: {}", backend_name);
         return -1;
@@ -47,6 +99,8 @@ i32 App::run(i32 argc, const char *argv[]) {
         return -1;
     }
 
+    i32 failures = 0;
+
     // f32
     {
         std::vector<f32> data(k_element_count);
@@ -57,7 +111,7 @@ i32 App::run(i32 argc, const char *argv[]) {
         }
         auto buffer = create_structured_buffer<f32>(device_.get(), k_buffer_usage, data);
         auto gpu = pp::reduce_sum<f32>(device_.get(), buffer.get(), k_element_count);
-        fmt::println("f32:   gpu={} cpu={:.0f} err={}", gpu, cpu_sum, std::abs(static_cast<f64>(gpu) - cpu_sum));
+        check_scalar("f32", static_cast<f64>(gpu), cpu_sum, failures);
     }
 
     // f16
@@ -70,24 +124,21 @@ i32 App::run(i32 argc, const char *argv[]) {
         }
         auto buffer = create_structured_buffer<f16>(device_.get(), k_buffer_usage, data);
         auto gpu = pp::reduce_sum<f16>(device_.get(), buffer.get(), k_f16_element_count);
-        fmt::println("f16:   gpu={} cpu={:.0f} err={}", static_cast<f32>(gpu), cpu_sum,
-                     std::abs(static_cast<f64>(static_cast<f32>(gpu)) - cpu_sum));
+        check_scalar("f16", static_cast<f64>(static_cast<f32>(gpu)), cpu_sum, failures);
     }
 
-    // f32x4
+    // f32x2
     {
-        std::vector<f32x4> data(k_element_count);
-        f64x4 cpu_sum = {0, 0, 0, 0};
+        std::vector<f32x2> data(k_element_count);
+        f64x2 cpu_sum = {0, 0};
         for (usize i = 0; i < k_element_count; ++i) {
             const f32 base = static_cast<f32>(i % 257);
-            data[i] = f32x4(base, base * 0.5f, -base, 1.0f);
-            cpu_sum += f64x4(data[i]);
+            data[i] = f32x2(base, -base * 0.5f);
+            cpu_sum += f64x2(data[i]);
         }
-        auto buffer = create_structured_buffer<f32x4>(device_.get(), k_buffer_usage, data);
-        auto gpu = pp::reduce_sum<f32x4>(device_.get(), buffer.get(), k_element_count);
-        auto diff = f64x4(gpu) - cpu_sum;
-        fmt::println("f32x4: err=[{}, {}, {}, {}]", std::abs(diff.x), std::abs(diff.y), std::abs(diff.z),
-                     std::abs(diff.w));
+        auto buffer = create_structured_buffer<f32x2>(device_.get(), k_buffer_usage, data);
+        auto gpu = pp::reduce_sum<f32x2>(device_.get(), buffer.get(), k_element_count);
+        check_vec2("f32x2", f64x2(gpu), cpu_sum, failures);
     }
 
     // f32x3
@@ -101,8 +152,35 @@ i32 App::run(i32 argc, const char *argv[]) {
         }
         auto buffer = create_structured_buffer<f32x3>(device_.get(), k_buffer_usage, data);
         auto gpu = pp::reduce_sum<f32x3>(device_.get(), buffer.get(), k_element_count);
-        auto diff = f64x3(gpu) - cpu_sum;
-        fmt::println("f32x3: err=[{}, {}, {}]", std::abs(diff.x), std::abs(diff.y), std::abs(diff.z));
+        check_vec3("f32x3", f64x3(gpu), cpu_sum, failures);
+    }
+
+    // f32x4
+    {
+        std::vector<f32x4> data(k_element_count);
+        f64x4 cpu_sum = {0, 0, 0, 0};
+        for (usize i = 0; i < k_element_count; ++i) {
+            const f32 base = static_cast<f32>(i % 257);
+            data[i] = f32x4(base, base * 0.5f, -base, 1.0f);
+            cpu_sum += f64x4(data[i]);
+        }
+        auto buffer = create_structured_buffer<f32x4>(device_.get(), k_buffer_usage, data);
+        auto gpu = pp::reduce_sum<f32x4>(device_.get(), buffer.get(), k_element_count);
+        check_vec4("f32x4", f64x4(gpu), cpu_sum, failures);
+    }
+
+    // f16x2
+    {
+        std::vector<f16x2> data(k_f16_element_count);
+        f64x2 cpu_sum = {0, 0};
+        for (usize i = 0; i < k_f16_element_count; ++i) {
+            const f32 base = static_cast<f32>((i % 64) + 1) * 0.01f;
+            data[i] = f16x2(base, -base * 0.5f);
+            cpu_sum += f64x2(f32x2(data[i]));
+        }
+        auto buffer = create_structured_buffer<f16x2>(device_.get(), k_buffer_usage, data);
+        auto gpu = pp::reduce_sum<f16x2>(device_.get(), buffer.get(), k_f16_element_count);
+        check_vec2("f16x2", f64x2(f32x2(gpu)), cpu_sum, failures);
     }
 
     // f16x3
@@ -117,11 +195,25 @@ i32 App::run(i32 argc, const char *argv[]) {
         }
         auto buffer = create_structured_buffer<f16x3>(device_.get(), k_buffer_usage, data);
         auto gpu = pp::reduce_sum<f16x3>(device_.get(), buffer.get(), k_f16_element_count);
-        auto diff = f64x3(f32x3(gpu)) - cpu_sum;
-        fmt::println("f16x3: err=[{}, {}, {}]", std::abs(diff.x), std::abs(diff.y), std::abs(diff.z));
+        check_vec3("f16x3", f64x3(f32x3(gpu)), cpu_sum, failures);
     }
 
-    return 0;
+    // f16x4
+    {
+        std::vector<f16x4> data(k_f16_element_count);
+        f64x4 cpu_sum = {0, 0, 0, 0};
+        for (usize i = 0; i < k_f16_element_count; ++i) {
+            const f32 base = static_cast<f32>((i % 64) + 1) * 0.01f;
+            data[i] = f16x4(base, base * 2.0f, -base * 0.5f, base * 0.25f);
+            cpu_sum += f64x4(f32x4(data[i]));
+        }
+        auto buffer = create_structured_buffer<f16x4>(device_.get(), k_buffer_usage, data);
+        auto gpu = pp::reduce_sum<f16x4>(device_.get(), buffer.get(), k_f16_element_count);
+        check_vec4("f16x4", f64x4(f32x4(gpu)), cpu_sum, failures);
+    }
+
+    fmt::println("\n{}/{} tests passed", 8 - failures, 8);
+    return failures > 0 ? 1 : 0;
 }
 
 } // namespace llc
