@@ -1,0 +1,21 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | tr -d '\\r' | { read -r f; echo \"$f\" | grep -qE '\\.(cpp|h|hpp)$' && echo \"$f\" | grep -qv 'external' && clang-tidy --fix --checks=\"-*,readability-identifier-naming\" -p build \"$f\"; } 2>/dev/null || true",
+            "statusMessage": "clang-tidy fix..."
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | tr -d '\\r' | { read -r f; echo \"$f\" | grep -qE '\\.(cpp|h|hpp|slang|slangh)$' && clang-format -i \"$f\"; } 2>/dev/null || true",
+            "statusMessage": "clang-format..."
+          }
+        ]
+      }
+    ]
+  }
+}
