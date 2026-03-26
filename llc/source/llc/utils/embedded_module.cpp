@@ -6,7 +6,7 @@
 namespace llc {
 
 Slang::ComPtr<slang::IModule> load_embedded_module(
-    rhi::IDevice *device,
+    slang::ISession *session,
     EmbededModuleDesc const &desc) {
 
     auto blob = Slang::ComPtr<FileBlob>(new FileBlob(std::span<const byte>(
@@ -14,10 +14,16 @@ Slang::ComPtr<slang::IModule> load_embedded_module(
         reinterpret_cast<const byte *>(desc.end))));
 
     Slang::ComPtr<slang::IBlob> diagnostics;
-    auto *module_ptr = device->getSlangSession()->loadModuleFromIRBlob(
+    auto *module_ptr = session->loadModuleFromIRBlob(
         desc.name, desc.name, blob.get(), diagnostics.writeRef());
     diagnose_if_needed(diagnostics.get());
     return Slang::ComPtr<slang::IModule>(module_ptr);
+}
+
+Slang::ComPtr<slang::IModule> load_embedded_module(
+    rhi::IDevice *device,
+    EmbededModuleDesc const &desc) {
+    return load_embedded_module(device->getSlangSession(), desc);
 }
 
 } // namespace llc
