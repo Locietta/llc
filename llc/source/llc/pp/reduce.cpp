@@ -1,7 +1,6 @@
 #include "reduce.h"
 
 #include <cassert>
-#include <mutex>
 #include <string>
 #include <vector>
 
@@ -11,6 +10,9 @@
 #include <llc/buffer.h>
 #include <llc/math.h>
 #include <llc/span.h>
+
+#include <llc/utils/embedded_module.h>
+#include <llc/utils/pipeline_cache.h>
 
 namespace llc::pp {
 
@@ -57,36 +59,6 @@ LLC_DEFINE_REDUCE_TYPE_INFO("float4", f32x4);
 LLC_DEFINE_REDUCE_TYPE_INFO("vector<half, 2>", f16x2);
 LLC_DEFINE_REDUCE_TYPE_INFO("vector<half, 3>", f16x3);
 LLC_DEFINE_REDUCE_TYPE_INFO("vector<half, 4>", f16x4);
-
-Slang::ComPtr<slang::IModule> load_embedded_ir(
-    rhi::IDevice *device,
-    const char *name,
-    const unsigned char *start,
-    const unsigned char *end) {
-
-    auto blob = Slang::ComPtr<FileBlob>(new FileBlob(std::span<const byte>(
-        reinterpret_cast<const byte *>(start),
-        reinterpret_cast<const byte *>(end))));
-
-    Slang::ComPtr<slang::IBlob> diagnostics;
-    auto *module_ptr = device->getSlangSession()->loadModuleFromIRBlob(
-        name, name, blob.get(), diagnostics.writeRef());
-    diagnose_if_needed(diagnostics.get());
-    return Slang::ComPtr<slang::IModule>(module_ptr);
-}
-
-void load_span_module(rhi::IDevice *device) {
-    load_embedded_ir(device, "span",
-                     _binary_span_slang_module_start,
-                     _binary_span_slang_module_end);
-}
-
-Slang::ComPtr<slang::IModule> load_reduce_module(rhi::IDevice *device) {
-    load_span_module(device);
-    return load_embedded_ir(device, "reduce",
-                            _binary_reduce_slang_module_start,
-                            _binary_reduce_slang_module_end);
-}
 
 Slang::ComPtr<rhi::IComputePipeline> create_linked_pipeline(
     rhi::IDevice *device,
@@ -140,44 +112,6 @@ Slang::ComPtr<rhi::IComputePipeline> create_linked_pipeline(
     return device->createComputePipeline(desc);
 }
 
-struct CachedPipeline final {
-    rhi::IDevice *device = nullptr;
-    std::string key;
-    Slang::ComPtr<rhi::IComputePipeline> pipeline;
-};
-
-struct PipelineCache final {
-    std::mutex mutex;
-    std::vector<CachedPipeline> entries;
-};
-
-PipelineCache g_buffer_pipelines;
-
-template <typename CreateFn>
-Slang::ComPtr<rhi::IComputePipeline>
-get_cached_pipeline(PipelineCache &cache, rhi::IDevice *device, std::string key, CreateFn create_fn) {
-    {
-        std::scoped_lock lock(cache.mutex);
-        for (const auto &cached : cache.entries) {
-            if (cached.device == device && cached.key == key) {
-                return cached.pipeline;
-            }
-        }
-    }
-
-    auto pipeline = create_fn(device);
-    if (!pipeline) return nullptr;
-
-    std::scoped_lock lock(cache.mutex);
-    for (const auto &cached : cache.entries) {
-        if (cached.device == device && cached.key == key) {
-            return cached.pipeline;
-        }
-    }
-    cache.entries.push_back({device, std::move(key), pipeline});
-    return pipeline;
-}
-
 constexpr usize next_reduce_count(usize count) noexcept {
     return divide_and_round_up(count, k_thread_group_size * 2);
 }
@@ -222,9 +156,20 @@ SlangResult encode_reduce_sum(
 
     using Info = ReduceTypeInfo<T>;
     auto pipeline = get_cached_pipeline(g_buffer_pipelines, device, Info::k_slang_type, [](rhi::IDevice *d) {
-        auto module = load_reduce_module(d);
-        if (!module) return Slang::ComPtr<rhi::IComputePipeline>{};
-        return create_linked_pipeline(d, module.get(), Info::k_config_name, Info::k_config_source, "reduce");
+        auto span = load_embedded_module(d, EmbededModuleDesc{
+                                                .name = "span",
+                                                .start = _binary_span_slang_module_start,
+                                                .end = _binary_span_slang_module_end,
+                                            });
+
+        auto reduce = load_embedded_module(d, EmbededModuleDesc{
+                                                  .name = "reduce",
+                                                  .start = _binary_reduce_slang_module_start,
+                                                  .end = _binary_reduce_slang_module_end,
+                                              });
+
+        if (!span || !reduce) return Slang::ComPtr<rhi::IComputePipeline>{};
+        return create_linked_pipeline(d, reduce.get(), Info::k_config_name, Info::k_config_source, "reduce");
     });
     if (!pipeline) return SLANG_FAIL;
 

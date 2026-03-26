@@ -11,6 +11,9 @@
 #include <llc/blob.h>
 #include <llc/types.hpp>
 
+#include <llc/utils/embedded_module.h>
+#include <llc/utils/pipeline_cache.h>
+
 namespace llc {
 
 namespace {
@@ -34,20 +37,6 @@ bool supports_auto_mip_generation(rhi::Format format) noexcept {
     return format == rhi::Format::RGBA8Unorm || format == rhi::Format::RGBA32Float;
 }
 
-struct EmbeddedModuleDesc final {
-    const char *module_name = nullptr;
-    const unsigned char *begin = nullptr;
-    const unsigned char *end = nullptr;
-};
-
-EmbeddedModuleDesc mip_module_desc() noexcept {
-    return {
-        .module_name = "generate_mips",
-        .begin = _binary_generate_mips_slang_module_start,
-        .end = _binary_generate_mips_slang_module_end,
-    };
-}
-
 std::string mip_format_specialization_expr(rhi::Format format) {
     switch (format) {
         case rhi::Format::RGBA8Unorm:
@@ -59,29 +48,12 @@ std::string mip_format_specialization_expr(rhi::Format format) {
     }
 }
 
-Slang::ComPtr<slang::IModule> load_embedded_shader_module(rhi::IDevice *device) {
-    const auto desc = mip_module_desc();
-    if (!desc.module_name || !desc.begin || !desc.end || desc.begin >= desc.end) {
-        return nullptr;
-    }
-
-    const auto shader_ir =
-        Slang::ComPtr<FileBlob>(new FileBlob(std::span<const byte>(
-            reinterpret_cast<const byte *>(desc.begin),
-            static_cast<usize>(desc.end - desc.begin))));
-
-    Slang::ComPtr<slang::IBlob> diagnostics;
-    auto *module_ptr = device->getSlangSession()->loadModuleFromIRBlob(
-        desc.module_name,
-        desc.module_name,
-        shader_ir.get(),
-        diagnostics.writeRef());
-    diagnose_if_needed(diagnostics.get());
-    return Slang::ComPtr<slang::IModule>(module_ptr);
-}
-
 Slang::ComPtr<rhi::IComputePipeline> create_generate_mips_pipeline(rhi::IDevice *device, rhi::Format format) {
-    auto module = load_embedded_shader_module(device);
+    auto module = load_embedded_module(device, EmbededModuleDesc{
+                                                   .name = "generate_mips",
+                                                   .start = _binary_generate_mips_slang_module_start,
+                                                   .end = _binary_generate_mips_slang_module_end,
+                                               });
     if (!module) return nullptr;
 
     Slang::ComPtr<slang::IEntryPoint> entry_point;
@@ -119,38 +91,6 @@ Slang::ComPtr<rhi::IComputePipeline> create_generate_mips_pipeline(rhi::IDevice 
     rhi::ComputePipelineDesc desc{};
     desc.program = program.get();
     return device->createComputePipeline(desc);
-}
-
-struct CachedMipPipeline final {
-    rhi::IDevice *device = nullptr;
-    rhi::Format format = rhi::Format::Undefined;
-    Slang::ComPtr<rhi::IComputePipeline> pipeline;
-};
-
-std::mutex g_mip_pipeline_mutex;
-std::vector<CachedMipPipeline> g_mip_pipelines;
-
-Slang::ComPtr<rhi::IComputePipeline> get_generate_mips_pipeline(rhi::IDevice *device, rhi::Format format) {
-    {
-        std::scoped_lock lock(g_mip_pipeline_mutex);
-        for (const auto &cached : g_mip_pipelines) {
-            if (cached.device == device && cached.format == format) {
-                return cached.pipeline;
-            }
-        }
-    }
-
-    auto pipeline = create_generate_mips_pipeline(device, format);
-    if (!pipeline) return nullptr;
-
-    std::scoped_lock lock(g_mip_pipeline_mutex);
-    for (const auto &cached : g_mip_pipelines) {
-        if (cached.device == device && cached.format == format) {
-            return cached.pipeline;
-        }
-    }
-    g_mip_pipelines.push_back({device, format, pipeline});
-    return pipeline;
 }
 
 bool validate_mip_image_chain(std::span<const Image> mip_images, rhi::Format format) noexcept {
@@ -203,7 +143,22 @@ bool generate_texture_mips(rhi::IDevice *device, rhi::ITexture *texture) {
     const auto &desc = texture->getDesc();
     if (desc.mipCount <= 1) return true;
 
-    auto pipeline = get_generate_mips_pipeline(device, desc.format);
+    /// generate pipeline key for cache
+    const std::string pipeline_key = "generate_mips_" + [&desc] {
+        switch (desc.format) {
+            case rhi::Format::RGBA8Unorm:
+                return std::string("rgba8");
+            case rhi::Format::RGBA32Float:
+                return std::string("rgba32f");
+            default:
+                return std::string{};
+        }
+    }();
+
+    auto pipeline = get_cached_pipeline(g_buffer_pipelines, device, pipeline_key,
+                                        [&desc](rhi::IDevice *d) {
+                                            return create_generate_mips_pipeline(d, desc.format);
+                                        });
     if (!pipeline) return false;
 
     auto queue = device->getQueue(rhi::QueueType::Graphics);
