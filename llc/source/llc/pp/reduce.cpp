@@ -20,10 +20,8 @@ namespace {
 
 using namespace llc::types;
 
-extern "C" const unsigned char _binary_span_slang_module_start[];   // NOLINT
-extern "C" const unsigned char _binary_span_slang_module_end[];     // NOLINT
-extern "C" const unsigned char _binary_reduce_slang_module_start[]; // NOLINT
-extern "C" const unsigned char _binary_reduce_slang_module_end[];   // NOLINT
+extern "C" const unsigned char _binary_reduce_slang_module_start[]; // NOLINT(readability-identifier-naming)
+extern "C" const unsigned char _binary_reduce_slang_module_end[];   // NOLINT(readability-identifier-naming)
 
 constexpr usize k_thread_group_size = 256;
 
@@ -156,11 +154,7 @@ SlangResult encode_reduce_sum(
 
     using Info = ReduceTypeInfo<T>;
     auto pipeline = get_cached_pipeline(g_buffer_pipelines, device, Info::k_slang_type, [](rhi::IDevice *d) {
-        auto span = load_embedded_module(d, EmbededModuleDesc{
-                                                .name = "span",
-                                                .start = _binary_span_slang_module_start,
-                                                .end = _binary_span_slang_module_end,
-                                            });
+        auto span = load_span_module(d);
 
         auto reduce = load_embedded_module(d, EmbededModuleDesc{
                                                   .name = "reduce",
