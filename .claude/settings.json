@@ -11,8 +11,8 @@
           },
           {
             "type": "command",
-            "command": "jq -r '.tool_input.file_path // empty' | tr -d '\\r' | { read -r f; echo \"$f\" | grep -qE '\\.(cpp|h|hpp|slang|slangh)$' && clang-format -i \"$f\"; } 2>/dev/null || true",
-            "statusMessage": "clang-format..."
+            "command": "python3 .claude/hooks/format.py",
+            "statusMessage": "formatting..."
           }
         ]
       }
