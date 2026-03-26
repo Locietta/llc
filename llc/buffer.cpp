@@ -22,6 +22,24 @@ Slang::ComPtr<rhi::IBuffer> create_structured_buffer(
     return device->createBuffer(buffer_desc, init_data);
 }
 
+Slang::ComPtr<rhi::IBuffer> create_buffer(
+    rhi::IDevice *device,
+    u64 byte_size,
+    rhi::BufferUsage usage,
+    const void *init_data,
+    rhi::MemoryType memory_type,
+    rhi::ResourceState rc_state) {
+
+    rhi::BufferDesc buffer_desc{
+        .size = byte_size,
+        .memoryType = memory_type,
+        .usage = usage,
+        .defaultState = rc_state,
+    };
+
+    return device->createBuffer(buffer_desc, init_data);
+}
+
 void clear_buffer(rhi::IDevice *device,
                   rhi::IBuffer *buffer,
                   rhi::BufferRange range) {

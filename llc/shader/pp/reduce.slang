@@ -1,5 +1,7 @@
 module reduce;
 
+import span;
+
 public interface IReduceElement {
     __init(int v);
     This dadd(This other);
@@ -23,12 +25,11 @@ groupshared ReduceElement g_wave_sums[WAVE_PER_GROUP];
 void reduce(
     uint3 groupThreadID: SV_GroupThreadID,
     uint3 groupID: SV_GroupID,
-    uniform StructuredBuffer<ReduceElement> source,
-    uniform RWStructuredBuffer<ReduceElement> result) {
-
+    uniform Span<ReduceElement> source,
+    uniform MutSpan<ReduceElement> result) {
     uint localIndex = groupThreadID.x;
     uint index = groupID.x * THREAD_GROUP_SIZE * 2 + localIndex;
-    uint num_elements = source.getCount();
+    uint num_elements = (uint) source.length;
 
     var sum = index < num_elements ? source[index] : ReduceElement(0);
     sum = sum + ((index + THREAD_GROUP_SIZE < num_elements) ? source[index + THREAD_GROUP_SIZE] : ReduceElement(0));

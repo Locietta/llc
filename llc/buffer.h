@@ -79,6 +79,46 @@ ReadbackView<T> read_buffer(
     return ReadbackView<T>{blob};
 }
 
+Slang::ComPtr<rhi::IBuffer> create_buffer(
+    rhi::IDevice *device,
+    u64 byte_size,
+    rhi::BufferUsage usage,
+    const void *init_data = nullptr,
+    rhi::MemoryType memory_type = rhi::MemoryType::DeviceLocal,
+    rhi::ResourceState rc_state = rhi::ResourceState::UnorderedAccess);
+
+template <llc::standard_layout T>
+Slang::ComPtr<rhi::IBuffer> create_buffer(
+    rhi::IDevice *device,
+    rhi::BufferUsage usage,
+    std::span<const T> init_data = {},
+    rhi::MemoryType memory_type = rhi::MemoryType::DeviceLocal,
+    rhi::ResourceState rc_state = rhi::ResourceState::UnorderedAccess) {
+    return create_buffer(
+        device,
+        init_data.size_bytes(),
+        usage,
+        init_data.data(),
+        memory_type,
+        rc_state);
+}
+
+template <llc::standard_layout T>
+Slang::ComPtr<rhi::IBuffer> create_buffer(
+    rhi::IDevice *device,
+    u64 element_count,
+    rhi::BufferUsage usage,
+    rhi::MemoryType memory_type = rhi::MemoryType::DeviceLocal,
+    rhi::ResourceState rc_state = rhi::ResourceState::UnorderedAccess) {
+    return create_buffer(
+        device,
+        element_count * sizeof(T),
+        usage,
+        nullptr,
+        memory_type,
+        rc_state);
+}
+
 /// clear buffer to all zeros, slang-rhi does not support clear with values currently
 void clear_buffer(rhi::IDevice *device,
                   rhi::IBuffer *buffer,

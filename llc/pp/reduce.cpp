@@ -10,6 +10,7 @@
 #include <llc/blob.h>
 #include <llc/buffer.h>
 #include <llc/math.h>
+#include <llc/span.h>
 
 namespace llc::pp {
 
@@ -17,6 +18,8 @@ namespace {
 
 using namespace llc::types;
 
+extern "C" const unsigned char _binary_span_slang_module_start[];   // NOLINT
+extern "C" const unsigned char _binary_span_slang_module_end[];     // NOLINT
 extern "C" const unsigned char _binary_reduce_slang_module_start[]; // NOLINT
 extern "C" const unsigned char _binary_reduce_slang_module_end[];   // NOLINT
 
@@ -25,50 +28,64 @@ constexpr usize k_thread_group_size = 256;
 template <typename T>
 struct ReduceTypeInfo;
 
-#define LLC_REDUCE_CONFIG(slang_type, pad_decl, pad_init)                        \
+#define LLC_REDUCE_CONFIG(slang_type)                                            \
     "import reduce;\n"                                                           \
     "struct Impl : IReduceElement {\n"                                           \
     "    " slang_type " value;\n"                                                \
-    "    " pad_decl "\n"                                                         \
-    "    __init(int v) { value = " slang_type "(v); " pad_init " }\n"            \
-    "    __init(" slang_type " v) { value = v; " pad_init " }\n"                 \
+    "    __init(int v) { value = " slang_type "(v); }\n"                         \
+    "    __init(" slang_type " v) { value = v; }\n"                              \
     "    This dadd(This other) { return This(value + other.value); }\n"          \
     "    static This waveSum(This a) { return This(WaveActiveSum(a.value)); }\n" \
     "};\n"                                                                       \
     "export struct ReduceElement : IReduceElement = Impl;\n"
 
-#define LLC_DEFINE_REDUCE_TYPE_INFO(shader_type, cpp_type, pad_decl, pad_init)     \
+#define LLC_DEFINE_REDUCE_TYPE_INFO(shader_type, cpp_type)                         \
     template <>                                                                    \
     struct ReduceTypeInfo<cpp_type> final {                                        \
         static constexpr const char *k_slang_type = shader_type;                   \
         static constexpr usize k_byte_size = sizeof(cpp_type);                     \
         static constexpr const char *k_config_name = "reduce_config_" shader_type; \
         static constexpr const char *k_config_source =                             \
-            LLC_REDUCE_CONFIG(shader_type, pad_decl, pad_init);                    \
+            LLC_REDUCE_CONFIG(shader_type);                                        \
     }
 
-LLC_DEFINE_REDUCE_TYPE_INFO("float", f32, "", "");
-LLC_DEFINE_REDUCE_TYPE_INFO("half", f16, "half _pad;", "_pad = half(0);");
-LLC_DEFINE_REDUCE_TYPE_INFO("float2", f32x2, "", "");
-LLC_DEFINE_REDUCE_TYPE_INFO("float3", f32x3, "", "");
-LLC_DEFINE_REDUCE_TYPE_INFO("float4", f32x4, "", "");
-LLC_DEFINE_REDUCE_TYPE_INFO("vector<half, 2>", f16x2, "", "");
-LLC_DEFINE_REDUCE_TYPE_INFO("vector<half, 3>", f16x3, "half _pad;", "_pad = half(0);");
-LLC_DEFINE_REDUCE_TYPE_INFO("vector<half, 4>", f16x4, "", "");
+LLC_DEFINE_REDUCE_TYPE_INFO("float", f32);
+LLC_DEFINE_REDUCE_TYPE_INFO("half", f16);
+LLC_DEFINE_REDUCE_TYPE_INFO("float2", f32x2);
+LLC_DEFINE_REDUCE_TYPE_INFO("float3", f32x3);
+LLC_DEFINE_REDUCE_TYPE_INFO("float4", f32x4);
+LLC_DEFINE_REDUCE_TYPE_INFO("vector<half, 2>", f16x2);
+LLC_DEFINE_REDUCE_TYPE_INFO("vector<half, 3>", f16x3);
+LLC_DEFINE_REDUCE_TYPE_INFO("vector<half, 4>", f16x4);
 
-Slang::ComPtr<slang::IModule> load_embedded_module(rhi::IDevice *device) {
-    auto shader_ir = Slang::ComPtr<FileBlob>(new FileBlob(std::span<const byte>(
-        reinterpret_cast<const byte *>(_binary_reduce_slang_module_start),
-        reinterpret_cast<const byte *>(_binary_reduce_slang_module_end))));
+Slang::ComPtr<slang::IModule> load_embedded_ir(
+    rhi::IDevice *device,
+    const char *name,
+    const unsigned char *start,
+    const unsigned char *end) {
+
+    auto blob = Slang::ComPtr<FileBlob>(new FileBlob(std::span<const byte>(
+        reinterpret_cast<const byte *>(start),
+        reinterpret_cast<const byte *>(end))));
 
     Slang::ComPtr<slang::IBlob> diagnostics;
     auto *module_ptr = device->getSlangSession()->loadModuleFromIRBlob(
-        "reduce",
-        "reduce",
-        shader_ir.get(),
-        diagnostics.writeRef());
+        name, name, blob.get(), diagnostics.writeRef());
     diagnose_if_needed(diagnostics.get());
     return Slang::ComPtr<slang::IModule>(module_ptr);
+}
+
+void load_span_module(rhi::IDevice *device) {
+    load_embedded_ir(device, "span",
+                     _binary_span_slang_module_start,
+                     _binary_span_slang_module_end);
+}
+
+Slang::ComPtr<slang::IModule> load_reduce_module(rhi::IDevice *device) {
+    load_span_module(device);
+    return load_embedded_ir(device, "reduce",
+                            _binary_reduce_slang_module_start,
+                            _binary_reduce_slang_module_end);
 }
 
 Slang::ComPtr<rhi::IComputePipeline> create_linked_pipeline(
@@ -169,7 +186,7 @@ SlangResult encode_buffer_pass(
     rhi::ICommandEncoder *encoder,
     rhi::IComputePipeline *pipeline,
     rhi::IBuffer *source,
-    u32 count,
+    u64 count,
     rhi::IBuffer *result,
     u32 element_byte_size) {
 
@@ -177,12 +194,10 @@ SlangResult encode_buffer_pass(
     auto *pass = encoder->beginComputePass();
     auto root_object = pass->bindPipeline(pipeline);
     auto cursor = rhi::ShaderCursor(root_object);
-    SLANG_RETURN_ON_FAIL(cursor["source"].setBinding(rhi::Binding(
-        source,
-        rhi::BufferRange{0, static_cast<u64>(element_byte_size) * static_cast<u64>(count)})));
-    SLANG_RETURN_ON_FAIL(cursor["result"].setBinding(rhi::Binding(
-        result,
-        rhi::BufferRange{0, static_cast<u64>(element_byte_size) * static_cast<u64>(group_count)})));
+    const GpuSpan source_span{source->getDeviceAddress(), count};
+    const GpuSpan result_span{result->getDeviceAddress(), static_cast<u64>(group_count)};
+    SLANG_RETURN_ON_FAIL(cursor["source"].setData(source_span));
+    SLANG_RETURN_ON_FAIL(cursor["result"].setData(result_span));
     pass->dispatchCompute(group_count, 1, 1);
     pass->end();
     return SLANG_OK;
@@ -207,16 +222,19 @@ SlangResult encode_reduce_sum(
 
     using Info = ReduceTypeInfo<T>;
     auto pipeline = get_cached_pipeline(g_buffer_pipelines, device, Info::k_slang_type, [](rhi::IDevice *d) {
-        auto module = load_embedded_module(d);
+        auto module = load_reduce_module(d);
         if (!module) return Slang::ComPtr<rhi::IComputePipeline>{};
         return create_linked_pipeline(d, module.get(), Info::k_config_name, Info::k_config_source, "reduce");
     });
     if (!pipeline) return SLANG_FAIL;
 
     constexpr u32 elem_size = Info::k_byte_size;
-    const auto initial_count = static_cast<u32>(count);
+    const auto initial_count = static_cast<u64>(count);
 
-    for (u32 l = initial_count; l > 1; l = next_reduce_count(l)) {
+    bool first = true;
+    for (u64 l = initial_count; l > 1; l = next_reduce_count(l)) {
+        if (!first) encoder->globalBarrier();
+        first = false;
         auto *src = (l == initial_count) ? source : result;
         SLANG_RETURN_ON_FAIL(encode_buffer_pass(encoder, pipeline.get(), src, l, result, elem_size));
     }
@@ -227,15 +245,11 @@ template <typename T>
 T reduce_sum(rhi::IDevice *device, rhi::IBuffer *source, usize count) {
     assert(device && source);
 
-    constexpr u32 elem_size = ReduceTypeInfo<T>::k_byte_size;
     const auto result_size = reduce_sum_scratch_size<T>(count);
-    auto result = create_structured_buffer(
+    auto result = create_buffer(
         device,
         result_size,
-        elem_size,
-        rhi::BufferUsage::ShaderResource | rhi::BufferUsage::UnorderedAccess |
-            rhi::BufferUsage::CopySource | rhi::BufferUsage::CopyDestination,
-        nullptr);
+        rhi::BufferUsage::UnorderedAccess | rhi::BufferUsage::CopySource | rhi::BufferUsage::CopyDestination);
 
     auto queue = device->getQueue(rhi::QueueType::Graphics);
     auto encoder = queue->createCommandEncoder();

@@ -109,7 +109,7 @@ i32 App::run(i32 argc, const char *argv[]) {
             data[i] = static_cast<f32>(i + 1);
             cpu_sum += static_cast<f64>(data[i]);
         }
-        auto buffer = create_structured_buffer<f32>(device_.get(), k_buffer_usage, data);
+        auto buffer = create_buffer<f32>(device_.get(), k_buffer_usage, data);
         auto gpu = pp::reduce_sum<f32>(device_.get(), buffer.get(), k_element_count);
         check_scalar("f32", static_cast<f64>(gpu), cpu_sum, failures);
     }
@@ -122,7 +122,7 @@ i32 App::run(i32 argc, const char *argv[]) {
             data[i] = static_cast<f32>((i % 64) + 1) * 0.01f;
             cpu_sum += static_cast<f64>(static_cast<f32>(data[i]));
         }
-        auto buffer = create_structured_buffer<f16>(device_.get(), k_buffer_usage, data);
+        auto buffer = create_buffer<f16>(device_.get(), k_buffer_usage, data);
         auto gpu = pp::reduce_sum<f16>(device_.get(), buffer.get(), k_f16_element_count);
         check_scalar("f16", static_cast<f64>(static_cast<f32>(gpu)), cpu_sum, failures);
     }
@@ -136,7 +136,7 @@ i32 App::run(i32 argc, const char *argv[]) {
             data[i] = f32x2(base, -base * 0.5f);
             cpu_sum += f64x2(data[i]);
         }
-        auto buffer = create_structured_buffer<f32x2>(device_.get(), k_buffer_usage, data);
+        auto buffer = create_buffer<f32x2>(device_.get(), k_buffer_usage, data);
         auto gpu = pp::reduce_sum<f32x2>(device_.get(), buffer.get(), k_element_count);
         check_vec2("f32x2", f64x2(gpu), cpu_sum, failures);
     }
@@ -150,7 +150,7 @@ i32 App::run(i32 argc, const char *argv[]) {
             data[i] = f32x3(base, base * 0.5f, -base);
             cpu_sum += f64x3(data[i]);
         }
-        auto buffer = create_structured_buffer<f32x3>(device_.get(), k_buffer_usage, data);
+        auto buffer = create_buffer<f32x3>(device_.get(), k_buffer_usage, data);
         auto gpu = pp::reduce_sum<f32x3>(device_.get(), buffer.get(), k_element_count);
         check_vec3("f32x3", f64x3(gpu), cpu_sum, failures);
     }
@@ -164,7 +164,7 @@ i32 App::run(i32 argc, const char *argv[]) {
             data[i] = f32x4(base, base * 0.5f, -base, 1.0f);
             cpu_sum += f64x4(data[i]);
         }
-        auto buffer = create_structured_buffer<f32x4>(device_.get(), k_buffer_usage, data);
+        auto buffer = create_buffer<f32x4>(device_.get(), k_buffer_usage, data);
         auto gpu = pp::reduce_sum<f32x4>(device_.get(), buffer.get(), k_element_count);
         check_vec4("f32x4", f64x4(gpu), cpu_sum, failures);
     }
@@ -178,7 +178,7 @@ i32 App::run(i32 argc, const char *argv[]) {
             data[i] = f16x2(base, -base * 0.5f);
             cpu_sum += f64x2(f32x2(data[i]));
         }
-        auto buffer = create_structured_buffer<f16x2>(device_.get(), k_buffer_usage, data);
+        auto buffer = create_buffer<f16x2>(device_.get(), k_buffer_usage, data);
         auto gpu = pp::reduce_sum<f16x2>(device_.get(), buffer.get(), k_f16_element_count);
         check_vec2("f16x2", f64x2(f32x2(gpu)), cpu_sum, failures);
     }
@@ -193,7 +193,7 @@ i32 App::run(i32 argc, const char *argv[]) {
             data.emplace_back(base, base * 2.0f, -base * 0.5f);
             cpu_sum += f64x3(f32x3(data.back()));
         }
-        auto buffer = create_structured_buffer<f16x3>(device_.get(), k_buffer_usage, data);
+        auto buffer = create_buffer<f16x3>(device_.get(), k_buffer_usage, data);
         auto gpu = pp::reduce_sum<f16x3>(device_.get(), buffer.get(), k_f16_element_count);
         check_vec3("f16x3", f64x3(f32x3(gpu)), cpu_sum, failures);
     }
@@ -207,7 +207,7 @@ i32 App::run(i32 argc, const char *argv[]) {
             data[i] = f16x4(base, base * 2.0f, -base * 0.5f, base * 0.25f);
             cpu_sum += f64x4(f32x4(data[i]));
         }
-        auto buffer = create_structured_buffer<f16x4>(device_.get(), k_buffer_usage, data);
+        auto buffer = create_buffer<f16x4>(device_.get(), k_buffer_usage, data);
         auto gpu = pp::reduce_sum<f16x4>(device_.get(), buffer.get(), k_f16_element_count);
         check_vec4("f16x4", f64x4(f32x4(gpu)), cpu_sum, failures);
     }

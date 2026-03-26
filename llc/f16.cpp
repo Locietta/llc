@@ -7,7 +7,7 @@ namespace llc {
 
 namespace {
 
-using storage_type = f16_storage::storage_type;
+using storage_type = f16::storage_type;
 
 storage_type float_to_f16_bits(float value) noexcept {
     const u32 bits = std::bit_cast<u32>(value);
@@ -64,33 +64,33 @@ float f16_bits_to_float(storage_type bits) noexcept {
 
 } // namespace
 
-f16_storage::f16_storage(float value) noexcept : bits_(float_to_f16_bits(value)) {}
+f16::f16(float value) noexcept : bits_(float_to_f16_bits(value)) {}
 
-f16_storage::operator float() const noexcept {
+f16::operator float() const noexcept {
     return f16_bits_to_float(bits_);
 }
 
-f16_storage f16_storage::operator-() const noexcept {
+f16 f16::operator-() const noexcept {
     return from_bits(static_cast<storage_type>(bits_ ^ 0x8000u));
 }
 
-f16_storage &f16_storage::operator+=(f16_storage rhs) noexcept {
-    *this = f16_storage(static_cast<float>(*this) + static_cast<float>(rhs));
+f16 &f16::operator+=(f16 rhs) noexcept {
+    *this = f16(static_cast<float>(*this) + static_cast<float>(rhs));
     return *this;
 }
 
-f16_storage &f16_storage::operator-=(f16_storage rhs) noexcept {
-    *this = f16_storage(static_cast<float>(*this) - static_cast<float>(rhs));
+f16 &f16::operator-=(f16 rhs) noexcept {
+    *this = f16(static_cast<float>(*this) - static_cast<float>(rhs));
     return *this;
 }
 
-f16_storage &f16_storage::operator*=(f16_storage rhs) noexcept {
-    *this = f16_storage(static_cast<float>(*this) * static_cast<float>(rhs));
+f16 &f16::operator*=(f16 rhs) noexcept {
+    *this = f16(static_cast<float>(*this) * static_cast<float>(rhs));
     return *this;
 }
 
-f16_storage &f16_storage::operator/=(f16_storage rhs) noexcept {
-    *this = f16_storage(static_cast<float>(*this) / static_cast<float>(rhs));
+f16 &f16::operator/=(f16 rhs) noexcept {
+    *this = f16(static_cast<float>(*this) / static_cast<float>(rhs));
     return *this;
 }
 

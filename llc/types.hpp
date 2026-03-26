@@ -41,16 +41,9 @@ using isize = std::ptrdiff_t;
 
 using byte = std::byte;
 
-using f16x2 = glm::vec<2, f16_storage, glm::defaultp>;
-using f16x4 = glm::vec<4, f16_storage, glm::defaultp>;
-
-struct alignas(8) f16x3 final : glm::vec<3, f16_storage, glm::defaultp> { // NOLINT(readability-identifier-naming)
-    using glm::vec<3, f16_storage, glm::defaultp>::vec;
-    constexpr f16x3() noexcept = default;
-    constexpr f16x3(const glm::vec<3, f16_storage, glm::defaultp> &v) noexcept
-        : glm::vec<3, f16_storage, glm::defaultp>(v) {}
-};
-static_assert(sizeof(f16x3) == 8);
+using f16x2 = glm::vec<2, f16, glm::defaultp>;
+using f16x3 = glm::vec<3, f16, glm::defaultp>;
+using f16x4 = glm::vec<4, f16, glm::defaultp>;
 
 using f32x2 = glm::vec<2, f32, glm::defaultp>;
 using f32x3 = glm::vec<3, f32, glm::defaultp>;

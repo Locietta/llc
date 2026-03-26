@@ -74,6 +74,12 @@ rule("slang")
                 "-o", path(outputfile),
             }
 
+            local include_dirs = target:extraconf("rules", "slang", "include_dirs") or {}
+            for _, dir in ipairs(include_dirs) do
+                table.insert(slangc_opt, "-I")
+                table.insert(slangc_opt, path(path.join(scriptdir, dir)))
+            end
+
             batchcmds:show_progress(opt.progress, "${color.build.object}compiling.slang %s", sourcefile)
             batchcmds:vrunv(slangc.program, slangc_opt)
 
