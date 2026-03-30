@@ -102,7 +102,15 @@ rule("slang")
     after_clean(function (target)
         import("private.action.clean.remove_files")
         local output_subdir = target:extraconf("rules", "slang", "outputdir") or "shaders"
-        local outputdir = path.join(target:targetdir(), output_subdir)
-        remove_files(outputdir)
-        remove_files(path.join(target:autogendir(), "rules", "slang", "embed"))
+        local generated_dirs = {
+            path.join(target:targetdir(), output_subdir),
+            path.join(target:autogendir(), "rules", "slang"),
+            path.join(target:autogendir(), "rules", "slang2obj"),
+            path.join(target:objectdir(), "gens", "rules", "slang"),
+            path.join(target:objectdir(), "gens", "rules", "slang2obj"),
+        }
+
+        for _, dir in ipairs(generated_dirs) do
+            remove_files(dir)
+        end
     end)
