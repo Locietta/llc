@@ -4,7 +4,7 @@
 #include <cassert>
 #include <cstddef>
 #include <filesystem>
-#include <mdspan>
+#include <mdspan.hpp>
 #include <memory>
 
 #include <slang-rhi.h>
@@ -48,8 +48,8 @@ struct Image final {
     auto view() noexcept {
         assert(bytes_per_pixel(format) == sizeof(T));
         assert(row_pitch % sizeof(T) == 0);
-        using extents_type = std::dextents<std::size_t, 2>;
-        return std::mdspan<T, extents_type, std::layout_stride>(
+        using extents_type = Kokkos::dextents<std::size_t, 2>;
+        return Kokkos::mdspan<T, extents_type, Kokkos::layout_stride>(
             reinterpret_cast<T *>(data()),
             extents_type(height, width),
             std::array<std::size_t, 2>{row_pitch / sizeof(T), 1});
@@ -59,8 +59,8 @@ struct Image final {
     auto view() const noexcept {
         assert(bytes_per_pixel(format) == sizeof(T));
         assert(row_pitch % sizeof(T) == 0);
-        using extents_type = std::dextents<std::size_t, 2>;
-        return std::mdspan<const T, extents_type, std::layout_stride>(
+        using extents_type = Kokkos::dextents<std::size_t, 2>;
+        return Kokkos::mdspan<const T, extents_type, Kokkos::layout_stride>(
             reinterpret_cast<const T *>(data()),
             extents_type(height, width),
             std::array<std::size_t, 2>{row_pitch / sizeof(T), 1});
