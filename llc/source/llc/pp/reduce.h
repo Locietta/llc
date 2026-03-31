@@ -21,4 +21,14 @@ SlangResult encode_reduce_sum(
 template <typename T>
 T reduce_sum(rhi::IDevice *device, rhi::IBuffer *source, usize count);
 
+template <typename T>
+SlangResult encode_reduce_texture_sum(
+    rhi::IDevice *device,
+    rhi::ICommandEncoder *encoder,
+    rhi::ITexture *source,
+    rhi::IBuffer *result);
+
+template <typename T>
+T reduce_texture_sum(rhi::IDevice *device, rhi::ITexture *source);
+
 } // namespace llc::pp

@@ -2,7 +2,6 @@ add_requires("cxxopts")
 
 target("test-pp-reduce")
     set_kind("binary")
-    set_default(false)
     set_group("test")
     add_files("*.cpp")
     add_packages("fmt", "slang-rhi", "cxxopts")

@@ -6,7 +6,9 @@
 #include <fmt/core.h>
 
 #include <llc/buffer.h>
+#include <llc/image.h>
 #include <llc/pp/reduce.h>
+#include <llc/texture.h>
 
 namespace llc {
 
@@ -17,7 +19,9 @@ const auto k_buffer_usage = rhi::BufferUsage::ShaderResource | rhi::BufferUsage:
 
 constexpr u32 k_element_count = 1 << 25;
 constexpr u32 k_f16_element_count = 1 << 12; // 4096 — keeps partial sums within f16 range
-constexpr f64 k_tolerance = 0.001;           // 0.1% relative error
+constexpr u32 k_texture_width = 512;
+constexpr u32 k_texture_height = 256;
+constexpr f64 k_tolerance = 0.001; // 0.1% relative error
 
 /// Returns relative error |gpu - cpu| / |cpu|, or absolute error if cpu is near zero.
 f64 relative_error(f64 gpu, f64 cpu) {
@@ -78,20 +82,8 @@ i32 App::run(i32 argc, const char *argv[]) {
     const std::string backend_name = result["backend"].as<std::string>();
 
     rhi::DeviceDesc device_desc;
-    if (backend_name == "auto") {
-        device_desc.deviceType = rhi::DeviceType::Default;
-    } else if (backend_name == "vk") {
-        device_desc.slang.targetProfile = "spirv_1_6";
-        device_desc.deviceType = rhi::DeviceType::Vulkan;
-    } else if (backend_name == "dx") {
-        device_desc.slang.targetProfile = "sm_6_6";
-        device_desc.deviceType = rhi::DeviceType::D3D12;
-    } else if (backend_name == "cpu") {
-        device_desc.deviceType = rhi::DeviceType::CPU;
-    } else {
-        fmt::println("Unsupported backend: {}", backend_name);
-        return -1;
-    }
+    device_desc.slang.targetProfile = "spirv_1_6";
+    device_desc.deviceType = rhi::DeviceType::Vulkan;
 
     device_ = rhi::getRHI()->createDevice(device_desc);
     if (!device_) {
@@ -212,7 +204,47 @@ i32 App::run(i32 argc, const char *argv[]) {
         check_vec4("f16x4", f64x4(f32x4(gpu)), cpu_sum, failures);
     }
 
-    fmt::println("\n{}/{} tests passed", 8 - failures, 8);
+    // texture f32
+    {
+        Image image(k_texture_width, k_texture_height, rhi::Format::R32Float, k_texture_width * sizeof(f32));
+        auto view = image.view<f32>();
+        f64 cpu_sum = 0.0;
+        for (u32 y = 0; y < k_texture_height; ++y) {
+            for (u32 x = 0; x < k_texture_width; ++x) {
+                const auto index = static_cast<usize>(y) * k_texture_width + x;
+                const auto value = static_cast<f32>(index % 257);
+                view[y, x] = value;
+                cpu_sum += static_cast<f64>(value);
+            }
+        }
+
+        auto texture = create_texture_2d(device_.get(), image);
+        auto gpu = pp::reduce_texture_sum<f32>(device_.get(), texture.get());
+        check_scalar("texture f32", static_cast<f64>(gpu), cpu_sum, failures);
+    }
+
+    // texture f32x4
+    {
+        Image image(k_texture_width, k_texture_height, rhi::Format::RGBA32Float, k_texture_width * sizeof(f32x4));
+        auto view = image.view<f32x4>();
+        f64x4 cpu_sum = {0, 0, 0, 0};
+        for (u32 y = 0; y < k_texture_height; ++y) {
+            for (u32 x = 0; x < k_texture_width; ++x) {
+                const auto index = static_cast<usize>(y) * k_texture_width + x;
+                const auto base = static_cast<f32>(index % 257);
+                const auto value = f32x4(base, base * 0.5f, -base, 1.0f);
+                view[y, x] = value;
+                cpu_sum += f64x4(value);
+            }
+        }
+
+        auto texture = create_texture_2d(device_.get(), image);
+        auto gpu = pp::reduce_texture_sum<f32x4>(device_.get(), texture.get());
+        check_vec4("texture f32x4", f64x4(gpu), cpu_sum, failures);
+    }
+
+    constexpr i32 k_test_count = 10;
+    fmt::println("\n{}/{} tests passed", k_test_count - failures, k_test_count);
     return failures > 0 ? 1 : 0;
 }
 

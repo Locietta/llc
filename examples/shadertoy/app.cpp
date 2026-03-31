@@ -67,7 +67,7 @@ i32 App::run(float time_seconds) {
         const u32 dims[2] = {k_image_width, k_image_height};
         auto output_view = create_texture_view(device_.get(), output_texture.get());
         SLANG_RETURN_ON_FAIL(root_cursor["dims"].setData(dims, sizeof(dims)));
-        SLANG_RETURN_ON_FAIL(root_cursor["timeSeconds"].setData(&time_seconds, sizeof(time_seconds)));
+        SLANG_RETURN_ON_FAIL(root_cursor["timeSeconds"].setData(time_seconds));
         SLANG_RETURN_ON_FAIL(root_cursor["outputTexture"].setBinding(output_view));
         pass->dispatchCompute(
             divide_and_round_up(k_image_width, k_group_size),
