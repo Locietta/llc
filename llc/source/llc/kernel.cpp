@@ -4,14 +4,61 @@
 #include <filesystem>
 #include <ranges>
 #include <span>
-#include <vector>
+#include <system_error>
 
 #include <llc/blob.h>
+#include <llc/utils/fs.h>
 
 namespace llc {
 
 using Slang::ComPtr;
 using std::filesystem::path;
+
+namespace {
+
+constexpr auto k_default_search_paths = std::array{
+    ".",
+    "./shaders",
+    "./assets/shaders",
+};
+
+path get_search_path(std::span<const char *const> extra_search_paths, size_t index) {
+    if (index < extra_search_paths.size()) return path(extra_search_paths[index]);
+    return path(k_default_search_paths[index - extra_search_paths.size()]);
+}
+
+auto build_search_directories(std::span<const char *const> extra_search_paths) {
+    std::array<path, 2> search_roots;
+    size_t search_root_count = 0;
+
+    std::error_code error_code;
+    const auto cwd = std::filesystem::current_path(error_code);
+    if (!error_code) search_roots[search_root_count++] = cwd;
+
+    const auto exe_dir = executable_directory();
+    if (!exe_dir.empty() && (search_root_count == 0 || exe_dir != search_roots[0])) {
+        search_roots[search_root_count++] = exe_dir;
+    }
+
+    const size_t search_path_count = extra_search_paths.size() + k_default_search_paths.size();
+    const size_t root_count = search_root_count > 0 ? search_root_count : 1;
+
+    return std::views::iota(size_t{0}, search_path_count * root_count) | std::views::transform([=](size_t index) {
+               if (search_root_count == 0) return get_search_path(extra_search_paths, index);
+
+               const size_t root_index = index / search_path_count;
+               const size_t search_path_index = index % search_path_count;
+               const path search_path = get_search_path(extra_search_paths, search_path_index);
+               if (search_path.is_absolute()) {
+                   return root_index == 0 ? search_path : path{};
+               }
+
+               return search_roots[root_index] / search_path;
+           }) |
+           std::views::filter([](const path &search_directory) { return !search_directory.empty(); });
+}
+
+} // namespace
 
 ComPtr<slang::IModule> load_shader_module(
     slang::ISession *slang_session,
@@ -21,19 +68,11 @@ ComPtr<slang::IModule> load_shader_module(
     ComPtr<slang::IModule> slang_module;
     ComPtr<slang::IBlob> diagnostics;
 
-    constexpr auto default_search_paths = std::array{
-        ".",
-        "./shaders",
-        "./assets/shaders",
-    };
-    const auto default_paths = std::span<const char *const>{default_search_paths};
-
     const path binary_module_filename = (path(module_name) += ".slang-module");
     const path source_module_filename = (path(module_name) += ".slang");
 
-    for (const auto &search_path : std::array{extra_search_paths, default_paths} | std::views::join) {
-        const path current_search_path = path(search_path);
-        
+    for (const auto &current_search_path : build_search_directories(extra_search_paths)) {
+
         // try load binary module
         do {
             const path binary_full_path = current_search_path / binary_module_filename;
