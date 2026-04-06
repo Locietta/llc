@@ -71,6 +71,15 @@ static_assert(sizeof(i32) == 4);
 static_assert(sizeof(i64) == 8);
 static_assert(sizeof(f32) == 4);
 static_assert(sizeof(f64) == 8);
+static_assert(sizeof(f32x2) == sizeof(f32) * 2);
+static_assert(sizeof(f32x3) == sizeof(f32) * 3);
+static_assert(sizeof(f32x4) == sizeof(f32) * 4);
+static_assert(sizeof(i32x2) == sizeof(i32) * 2);
+static_assert(sizeof(i32x3) == sizeof(i32) * 3);
+static_assert(sizeof(i32x4) == sizeof(i32) * 4);
+static_assert(sizeof(u32x2) == sizeof(u32) * 2);
+static_assert(sizeof(u32x3) == sizeof(u32) * 3);
+static_assert(sizeof(u32x4) == sizeof(u32) * 4);
 
 } // namespace types
 

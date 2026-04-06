@@ -175,8 +175,8 @@ bool generate_texture_mips(rhi::IDevice *device, rhi::ITexture *texture) {
         {
             auto root_object = pass->bindPipeline(pipeline.get());
             auto cursor = rhi::ShaderCursor(root_object);
-            const u32 src_size[2] = {src_width, src_height};
-            const u32 dst_size[2] = {dst_width, dst_height};
+            const u32x2 src_size(src_width, src_height);
+            const u32x2 dst_size(dst_width, dst_height);
             if (SLANG_FAILED(cursor["srcSize"].setData(src_size)) ||
                 SLANG_FAILED(cursor["dstSize"].setData(dst_size)) ||
                 SLANG_FAILED(cursor["src"].setBinding(src_view)) ||

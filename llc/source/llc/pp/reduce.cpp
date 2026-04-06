@@ -314,7 +314,7 @@ SlangResult encode_texture_pass(
 
     const auto group_count = static_cast<u32>(next_reduce_count(count));
     const auto &desc = source->getDesc();
-    const u32 source_size[2] = {desc.size.width, desc.size.height};
+    const u32x2 source_size(desc.size.width, desc.size.height);
 
     auto *pass = encoder->beginComputePass();
     auto root_object = pass->bindPipeline(pipeline.get());
