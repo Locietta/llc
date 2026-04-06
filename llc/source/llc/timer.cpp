@@ -81,11 +81,11 @@ bool GpuTimer::resolve() {
     pair_durations_.resize(pair_count);
     assert(pair_durations_.size() == pair_count);
 
-    const double tick_to_seconds = 1.0 / static_cast<double>(timestamp_frequency_);
+    const f64 tick_to_seconds = 1.0 / static_cast<f64>(timestamp_frequency_);
     for (usize i = 0; i < pair_count; ++i) {
         const u64 start = results_[i * 2];
         const u64 end = results_[i * 2 + 1];
-        pair_durations_[i] = (end >= start) ? static_cast<double>(end - start) * tick_to_seconds : 0.0;
+        pair_durations_[i] = (end >= start) ? static_cast<f64>(end - start) * tick_to_seconds : 0.0;
     }
 
     resolved_ = true;
@@ -100,7 +100,7 @@ std::span<const u64> GpuTimer::raw_timestamps() const noexcept {
     return {results_.data(), next_query_index_};
 }
 
-std::span<const double> GpuTimer::pair_durations() const noexcept {
+std::span<const f64> GpuTimer::pair_durations() const noexcept {
     assert(resolved_);
     if (!resolved_) {
         return {};
@@ -116,8 +116,8 @@ std::span<const std::string> GpuTimer::labels() const noexcept {
     return {pair_labels_.data(), pair_labels_.size()};
 }
 
-double GpuTimer::ticks_to_seconds(u64 ticks) const noexcept {
-    return static_cast<double>(ticks) / static_cast<double>(timestamp_frequency_);
+f64 GpuTimer::ticks_to_seconds(u64 ticks) const noexcept {
+    return static_cast<f64>(ticks) / static_cast<f64>(timestamp_frequency_);
 }
 
 GpuTimer::Scope GpuTimer::scope(rhi::IPassEncoder *pass, std::string_view label) {

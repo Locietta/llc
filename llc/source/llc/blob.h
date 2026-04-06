@@ -53,7 +53,7 @@ struct FileBlob final : slang::IBlob {
     SLANG_NO_THROW const void *SLANG_MCALL getBufferPointer() override {
         return data_;
     }
-    SLANG_NO_THROW size_t SLANG_MCALL getBufferSize() override {
+    SLANG_NO_THROW usize SLANG_MCALL getBufferSize() override {
         return size_;
     }
 

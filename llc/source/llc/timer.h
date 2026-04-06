@@ -40,7 +40,7 @@ struct GpuTimer {
     };
 
     [[nodiscard]] std::span<const u64> raw_timestamps() const noexcept;
-    [[nodiscard]] std::span<const double> pair_durations() const noexcept;
+    [[nodiscard]] std::span<const f64> pair_durations() const noexcept;
     [[nodiscard]] std::span<const std::string> labels() const noexcept;
     [[nodiscard]] auto labeled_durations() const noexcept {
         return std::views::zip(labels(), pair_durations());
@@ -49,7 +49,7 @@ struct GpuTimer {
     [[nodiscard]] u64 timestamp_frequency() const noexcept { return timestamp_frequency_; }
     [[nodiscard]] u32 capacity() const noexcept { return capacity_; }
     [[nodiscard]] u32 query_count() const noexcept { return next_query_index_; }
-    [[nodiscard]] double ticks_to_seconds(u64 ticks) const noexcept;
+    [[nodiscard]] f64 ticks_to_seconds(u64 ticks) const noexcept;
 
     [[nodiscard]] Scope scope(rhi::IPassEncoder *pass, std::string_view label = {});
     [[nodiscard]] Scope scope(rhi::ICommandEncoder *encoder, std::string_view label = {});

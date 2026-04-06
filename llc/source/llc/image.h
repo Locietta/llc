@@ -48,10 +48,10 @@ struct Image final {
     auto view() noexcept {
         assert(bytes_per_pixel(format) == sizeof(T));
         assert(row_pitch % sizeof(T) == 0);
-        using extents_type = Kokkos::dextents<std::size_t, 2>;
+        using extents_type = Kokkos::dextents<usize, 2>;
         using mapping_type = Kokkos::layout_stride::mapping<extents_type>;
         const auto extents = extents_type(height, width);
-        const auto mapping = mapping_type(extents, std::array<std::size_t, 2>{row_pitch / sizeof(T), 1});
+        const auto mapping = mapping_type(extents, std::array<usize, 2>{row_pitch / sizeof(T), 1});
         return Kokkos::mdspan<T, extents_type, Kokkos::layout_stride>(
             reinterpret_cast<T *>(data()),
             mapping);
@@ -61,10 +61,10 @@ struct Image final {
     auto view() const noexcept {
         assert(bytes_per_pixel(format) == sizeof(T));
         assert(row_pitch % sizeof(T) == 0);
-        using extents_type = Kokkos::dextents<std::size_t, 2>;
+        using extents_type = Kokkos::dextents<usize, 2>;
         using mapping_type = Kokkos::layout_stride::mapping<extents_type>;
         const auto extents = extents_type(height, width);
-        const auto mapping = mapping_type(extents, std::array<std::size_t, 2>{row_pitch / sizeof(T), 1});
+        const auto mapping = mapping_type(extents, std::array<usize, 2>{row_pitch / sizeof(T), 1});
         return Kokkos::mdspan<const T, extents_type, Kokkos::layout_stride>(
             reinterpret_cast<const T *>(data()),
             mapping);

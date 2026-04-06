@@ -22,14 +22,14 @@ constexpr auto k_default_search_paths = std::array{
     "./assets/shaders",
 };
 
-path get_search_path(std::span<const char *const> extra_search_paths, size_t index) {
+path get_search_path(std::span<const char *const> extra_search_paths, usize index) {
     if (index < extra_search_paths.size()) return path(extra_search_paths[index]);
     return path(k_default_search_paths[index - extra_search_paths.size()]);
 }
 
 auto build_search_directories(std::span<const char *const> extra_search_paths) {
     std::array<path, 2> search_roots;
-    size_t search_root_count = 0;
+    usize search_root_count = 0;
 
     std::error_code error_code;
     const auto cwd = std::filesystem::current_path(error_code);
@@ -40,14 +40,14 @@ auto build_search_directories(std::span<const char *const> extra_search_paths) {
         search_roots[search_root_count++] = exe_dir;
     }
 
-    const size_t search_path_count = extra_search_paths.size() + k_default_search_paths.size();
-    const size_t root_count = search_root_count > 0 ? search_root_count : 1;
+    const usize search_path_count = extra_search_paths.size() + k_default_search_paths.size();
+    const usize root_count = search_root_count > 0 ? search_root_count : 1;
 
-    return std::views::iota(size_t{0}, search_path_count * root_count) | std::views::transform([=](size_t index) {
+    return std::views::iota(usize{0}, search_path_count * root_count) | std::views::transform([=](usize index) {
                if (search_root_count == 0) return get_search_path(extra_search_paths, index);
 
-               const size_t root_index = index / search_path_count;
-               const size_t search_path_index = index % search_path_count;
+               const usize root_index = index / search_path_count;
+               const usize search_path_index = index % search_path_count;
                const path search_path = get_search_path(extra_search_paths, search_path_index);
                if (search_path.is_absolute()) {
                    return root_index == 0 ? search_path : path{};
