@@ -15,14 +15,14 @@
 #include <llc/utils/embedded_module.h>
 #include <llc/utils/pipeline_cache.h>
 
+extern "C" const unsigned char _binary_reduce_slang_module_start[]; // NOLINT(readability-identifier-naming)
+extern "C" const unsigned char _binary_reduce_slang_module_end[];   // NOLINT(readability-identifier-naming)
+
 namespace llc::pp {
 
 namespace {
 
 using namespace llc::types;
-
-extern "C" const unsigned char _binary_reduce_slang_module_start[]; // NOLINT(readability-identifier-naming)
-extern "C" const unsigned char _binary_reduce_slang_module_end[];   // NOLINT(readability-identifier-naming)
 
 constexpr usize k_thread_group_size = 256;
 

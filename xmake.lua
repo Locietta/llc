@@ -22,9 +22,9 @@ add_rules("slang", {
     language_version = "2026",
 })
 
-add_requires("fmt")
-add_requires("glm")
-add_requires("mdspan")
+add_requires("fmt", { system = false})
+add_requires("glm", { system = false })
+add_requires("mdspan", { system = false })
 add_requires("slang", "slang-rhi")
 
 includes("*/xmake.lua")

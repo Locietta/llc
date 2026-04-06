@@ -4,6 +4,7 @@
 #include <windows.h>
 #elif defined(__linux__)
 #include <unistd.h>
+#include <linux/limits.h>
 #endif
 
 namespace llc {

@@ -2,12 +2,12 @@
 
 #include <llc/utils/embedded_module.h>
 
+extern "C" const unsigned char _binary_span_slang_module_start[]; // NOLINT(readability-identifier-naming)
+extern "C" const unsigned char _binary_span_slang_module_end[];   // NOLINT(readability-identifier-naming)
+
 namespace llc {
 
 namespace {
-
-extern "C" const unsigned char _binary_span_slang_module_start[]; // NOLINT(readability-identifier-naming)
-extern "C" const unsigned char _binary_span_slang_module_end[];   // NOLINT(readability-identifier-naming)
 
 } // namespace
 

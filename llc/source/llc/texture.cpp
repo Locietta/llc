@@ -14,12 +14,12 @@
 #include <llc/utils/embedded_module.h>
 #include <llc/utils/pipeline_cache.h>
 
+extern "C" const unsigned char _binary_generate_mips_slang_module_start[]; // NOLINT
+extern "C" const unsigned char _binary_generate_mips_slang_module_end[];   // NOLINT
+
 namespace llc {
 
 namespace {
-
-extern "C" const unsigned char _binary_generate_mips_slang_module_start[]; // NOLINT
-extern "C" const unsigned char _binary_generate_mips_slang_module_end[];   // NOLINT
 
 } // namespace
 
