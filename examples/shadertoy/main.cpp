@@ -6,12 +6,12 @@
 
 namespace {
 
-constexpr float k_default_time_seconds = 3.0f;
+constexpr llc::f32 k_default_time_seconds = 3.0f;
 
 } // namespace
 
-int main(int argc, char **argv) {
-    float time_seconds = k_default_time_seconds;
+llc::i32 main(llc::i32 argc, char **argv) {
+    llc::f32 time_seconds = k_default_time_seconds;
     if (argc > 1) {
         char *end = nullptr;
         time_seconds = std::strtof(argv[1], &end);

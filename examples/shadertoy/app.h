@@ -16,7 +16,7 @@ struct App final {
 
     Kernel shader_kernel_;
 
-    i32 run(float time_seconds);
+    i32 run(f32 time_seconds);
 };
 
 } // namespace llc
