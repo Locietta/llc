@@ -15,7 +15,7 @@ add_repositories("loia https://github.com/Locietta/xmake-repo")
 
 add_moduledirs("xmake/modules")
 
-includes("xmake/*.lua")
+includes("xmake/rules/*.lua")
 
 add_rules("output.separate-per-target")
 add_rules("slang", {
