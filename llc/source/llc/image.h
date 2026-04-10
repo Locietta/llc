@@ -4,7 +4,7 @@
 #include <cassert>
 #include <cstddef>
 #include <filesystem>
-#include <mdspan.hpp>
+#include <mdspan/mdspan.hpp>
 #include <memory>
 
 #include <slang-rhi.h>

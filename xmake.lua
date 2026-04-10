@@ -11,7 +11,8 @@ if is_os("windows") then
     add_defines("WIN32_LEAN_AND_MEAN", "UNICODE", "_UNICODE", "NOMINMAX", "_WINDOWS")
 end
 
-add_repositories("local-repo xmake")
+add_repositories("loia https://github.com/Locietta/xmake-repo")
+
 add_moduledirs("xmake/modules")
 
 includes("xmake/*.lua")

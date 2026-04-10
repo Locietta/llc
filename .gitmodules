@@ -1,6 +1,0 @@
-[submodule "external/slang-rhi"]
-	path = external/slang-rhi
-	url = https://github.com/shader-slang/slang-rhi.git
-[submodule "external/mdspan"]
-	path = external/mdspan
-	url = https://github.com/kokkos/mdspan.git
