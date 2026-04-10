@@ -10,7 +10,6 @@
 namespace llc {
 
 struct CachedPipeline final {
-    rhi::IDevice *device = nullptr;
     std::string key;
     Slang::ComPtr<rhi::IComputePipeline> pipeline;
 };
@@ -18,34 +17,36 @@ struct CachedPipeline final {
 struct PipelineCache final {
     std::mutex mutex;
     std::vector<CachedPipeline> entries;
+
+    void clear() noexcept {
+        std::scoped_lock lock(mutex);
+        entries.clear();
+    }
 };
 
-inline PipelineCache g_buffer_pipelines;
-
 /// Thread-safe pipeline lookup with double-checked locking.
-/// `create_fn(device)` is called outside the lock if no cache hit.
+/// `create_fn()` is called outside the lock if no cache hit.
 template <typename CreateFn>
-Slang::ComPtr<rhi::IComputePipeline>
-get_cached_pipeline(PipelineCache &cache, rhi::IDevice *device, std::string key, CreateFn create_fn) {
+Slang::ComPtr<rhi::IComputePipeline> get_cached_pipeline(PipelineCache &cache, std::string key, CreateFn create_fn) {
     {
         std::scoped_lock lock(cache.mutex);
         for (const auto &cached : cache.entries) {
-            if (cached.device == device && cached.key == key) {
+            if (cached.key == key) {
                 return cached.pipeline;
             }
         }
     }
 
-    auto pipeline = create_fn(device);
+    auto pipeline = create_fn();
     if (!pipeline) return nullptr;
 
     std::scoped_lock lock(cache.mutex);
     for (const auto &cached : cache.entries) {
-        if (cached.device == device && cached.key == key) {
+        if (cached.key == key) {
             return cached.pipeline;
         }
     }
-    cache.entries.push_back({device, std::move(key), pipeline});
+    cache.entries.push_back({std::move(key), pipeline});
     return pipeline;
 }
 

@@ -10,12 +10,13 @@
 #include <vector>
 #include <ranges>
 
+#include <llc/context.h>
 #include <llc/types.hpp>
 
 namespace llc {
 
 struct GpuTimer {
-    static std::optional<GpuTimer> create(rhi::IDevice *device, u32 pass_count);
+    static std::optional<GpuTimer> create(Context &context, u32 pass_count);
 
     void reset();
     bool resolve();

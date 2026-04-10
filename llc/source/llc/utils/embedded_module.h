@@ -1,6 +1,7 @@
 #pragma once
 
 #include <slang-rhi.h>
+#include <llc/context.h>
 #include <llc/types.hpp>
 
 namespace llc {
@@ -16,6 +17,6 @@ Slang::ComPtr<slang::IModule> load_embedded_module(slang::ISession *session, Emb
 
 /// Loads a precompiled Slang IR module from embedded binary data into the device's Slang session.
 /// The module is registered by name so subsequent `import` statements can resolve it.
-Slang::ComPtr<slang::IModule> load_embedded_module(rhi::IDevice *device, EmbededModuleDesc const &desc);
+Slang::ComPtr<slang::IModule> load_embedded_module(Context &context, EmbededModuleDesc const &desc);
 
 } // namespace llc

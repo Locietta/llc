@@ -3,6 +3,7 @@
 #include <slang-com-ptr.h>
 #include <slang-rhi.h>
 
+#include <llc/context.h>
 #include <llc/types.hpp>
 
 namespace llc::pp {
@@ -12,23 +13,23 @@ usize reduce_sum_scratch_size(usize count);
 
 template <typename T>
 SlangResult encode_reduce_sum(
-    rhi::IDevice *device,
+    Context &context,
     rhi::ICommandEncoder *encoder,
     rhi::IBuffer *source,
     usize count,
     rhi::IBuffer *result);
 
 template <typename T>
-T reduce_sum(rhi::IDevice *device, rhi::IBuffer *source, usize count);
+T reduce_sum(Context &context, rhi::IBuffer *source, usize count);
 
 template <typename T>
 SlangResult encode_reduce_texture_sum(
-    rhi::IDevice *device,
+    Context &context,
     rhi::ICommandEncoder *encoder,
     rhi::ITexture *source,
     rhi::IBuffer *result);
 
 template <typename T>
-T reduce_texture_sum(rhi::IDevice *device, rhi::ITexture *source);
+T reduce_texture_sum(Context &context, rhi::ITexture *source);
 
 } // namespace llc::pp

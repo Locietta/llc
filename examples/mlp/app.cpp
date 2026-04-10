@@ -121,13 +121,13 @@ std::filesystem::path resolve_input_path(const std::filesystem::path &path) {
 
 template <blob_compatible T>
 ComPtr<rhi::IBuffer> create_device_buffer(
-    rhi::IDevice *device,
+    Context &context,
     rhi::BufferUsage usage,
     std::span<const T> init_data = {},
     rhi::ResourceState default_state = rhi::ResourceState::UnorderedAccess) {
 
     return create_structured_buffer(
-        device,
+        context,
         init_data.size_bytes(),
         sizeof(T),
         usage,
@@ -137,7 +137,7 @@ ComPtr<rhi::IBuffer> create_device_buffer(
 }
 
 ComPtr<rhi::IBuffer> create_device_buffer(
-    rhi::IDevice *device,
+    Context &context,
     u64 byte_size,
     u32 element_size,
     rhi::BufferUsage usage,
@@ -145,7 +145,7 @@ ComPtr<rhi::IBuffer> create_device_buffer(
     rhi::ResourceState default_state = rhi::ResourceState::UnorderedAccess) {
 
     return create_structured_buffer(
-        device,
+        context,
         byte_size,
         element_size,
         usage,
@@ -300,25 +300,25 @@ TrainingBuffers create_training_buffers(
                               rhi::BufferUsage::CopyDestination | rhi::BufferUsage::CopySource;
 
     buffers.network_params = create_device_buffer(
-        app.device_.get(),
+        app.context_,
         common_usage,
         std::span<const f16>(init_params));
 
     std::vector<AdamState> adam_states(app.network_gradient_training_offset_ / sizeof(f16));
     buffers.adam_state = create_device_buffer(
-        app.device_.get(),
+        app.context_,
         common_usage,
         std::span<const AdamState>(adam_states));
 
     const auto network_constant_data =
         make_network_constant_buffer_data(buffers.network_params.get(), app.layer_allocations_);
     buffers.network_constants = create_device_buffer(
-        app.device_.get(),
+        app.context_,
         common_usage,
         std::span<const u64>(network_constant_data));
 
-    buffers.input_samples = create_device_buffer(app.device_.get(), common_usage, input_samples);
-    buffers.loss = create_device_buffer(app.device_.get(), sizeof(u32), sizeof(u32), common_usage);
+    buffers.input_samples = create_device_buffer(app.context_, common_usage, input_samples);
+    buffers.loss = create_device_buffer(app.context_, sizeof(u32), sizeof(u32), common_usage);
 
     return buffers;
 }
@@ -344,7 +344,7 @@ SlangResult dispatch_learn_gradient(
     rhi::IBuffer *input_buffer,
     u32 sample_count) {
 
-    auto queue = app.device_->getQueue(rhi::QueueType::Graphics);
+    auto queue = app.context_.queue();
     auto encoder = queue->createCommandEncoder();
     auto pass = encoder->beginComputePass();
     {
@@ -399,7 +399,7 @@ SlangResult convert_weight_gradients(
         });
     }
 
-    auto queue = app.device_->getQueue(rhi::QueueType::Graphics);
+    auto queue = app.context_.queue();
     auto encoder = queue->createCommandEncoder();
     encoder->convertCooperativeVectorMatrix(
         network_params_buffer,
@@ -420,7 +420,7 @@ SlangResult dispatch_adjust_parameters(
     rhi::IBuffer *network_params,
     u32 gradient_count) {
 
-    auto queue = app.device_->getQueue(rhi::QueueType::Graphics);
+    auto queue = app.context_.queue();
     auto encoder = queue->createCommandEncoder();
     auto pass = encoder->beginComputePass();
     {
@@ -445,8 +445,8 @@ SlangResult dispatch_adjust_parameters(
     return SLANG_OK;
 }
 
-std::optional<f32> read_loss_value(rhi::IDevice *device, rhi::IBuffer *loss_buffer) {
-    auto loss_bits = read_buffer<u32>(device, loss_buffer, 0, 1);
+std::optional<f32> read_loss_value(Context &context, rhi::IBuffer *loss_buffer) {
+    auto loss_bits = read_buffer<u32>(context, loss_buffer, 0, 1);
     if (!loss_bits) return std::nullopt;
     return std::bit_cast<f32>(loss_bits[0]);
 }
@@ -491,32 +491,33 @@ i32 App::run(i32 argc, const char *argv[]) {
     device_desc.slang.preprocessorMacros = defines;
     device_desc.slang.preprocessorMacroCount = std::size(defines);
 
-    device_ = rhi::getRHI()->createDevice(device_desc);
-    if (!device_) {
+    auto context = Context::create(ContextDesc{.device = device_desc});
+    if (!context) {
         fmt::println("Failed to create Vulkan device.");
         return -1;
     }
-    if (!device_->hasFeature(rhi::Feature::CooperativeVector)) {
+    context_ = std::move(*context);
+    auto *device = context_.device();
+    if (!device->hasFeature(rhi::Feature::CooperativeVector)) {
         fmt::println("The selected device does not support cooperative vectors.");
         return -1;
     }
 
-    slang_session_ = device_->getSlangSession();
-    slang_module_ = load_shader_module(slang_session_.get(), k_kernel_module_name);
+    slang_module_ = load_shader_module(context_, k_kernel_module_name);
     if (!slang_module_) {
         fmt::println("Failed to load shader module: {}", k_kernel_module_name);
         return -1;
     }
 
-    learn_grad_kernel_ = Kernel::load(slang_module_.get(), device_.get(), "learnGradient");
-    adjust_parameters_kernel_ = Kernel::load(slang_module_.get(), device_.get(), "adjustParameters");
+    learn_grad_kernel_ = Kernel::load(slang_module_.get(), context_, "learnGradient");
+    adjust_parameters_kernel_ = Kernel::load(slang_module_.get(), context_, "adjustParameters");
     if (!learn_grad_kernel_ || !adjust_parameters_kernel_) {
         fmt::println("Failed to load MLP kernels.");
         return -1;
     }
 
     if (SLANG_FAILED(allocate_network_parameter_storage(
-            device_.get(),
+            device,
             layer_allocations_,
             network_params_buffer_size_,
             network_gradient_offset_,
@@ -536,11 +537,11 @@ i32 App::run(i32 argc, const char *argv[]) {
     const u32 gradient_count =
         static_cast<u32>((network_gradient_training_offset_ - network_gradient_offset_) / sizeof(f16));
 
-    auto queue = device_->getQueue(rhi::QueueType::Graphics);
+    auto queue = context_.queue();
     for (u32 iteration = 0; iteration < config_.iteration_count; ++iteration) {
-        llc::clear_buffer(device_.get(), buffers.loss.get());
+        llc::clear_buffer(context_, buffers.loss.get());
         llc::clear_buffer(
-            device_.get(),
+            context_,
             buffers.network_params.get(),
             rhi::BufferRange{
                 network_gradient_training_offset_,
@@ -573,7 +574,7 @@ i32 App::run(i32 argc, const char *argv[]) {
 
         if (config_.report_interval != 0 && ((iteration + 1) % config_.report_interval == 0)) {
             queue->waitOnHost();
-            const auto loss = read_loss_value(device_.get(), buffers.loss.get());
+            const auto loss = read_loss_value(context_, buffers.loss.get());
             if (!loss) {
                 fmt::println("Failed to read back loss buffer.");
                 return -1;
@@ -583,7 +584,7 @@ i32 App::run(i32 argc, const char *argv[]) {
     }
 
     queue->waitOnHost();
-    const auto final_loss = read_loss_value(device_.get(), buffers.loss.get());
+    const auto final_loss = read_loss_value(context_, buffers.loss.get());
     if (!final_loss) {
         fmt::println("Failed to read back final loss.");
         return -1;

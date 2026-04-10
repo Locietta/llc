@@ -2,8 +2,9 @@
 
 namespace llc {
 
-std::optional<GpuTimer> GpuTimer::create(rhi::IDevice *device, u32 pass_count) {
+std::optional<GpuTimer> GpuTimer::create(Context &context, u32 pass_count) {
     GpuTimer timer;
+    auto *device = context.device();
     if (!device || pass_count == 0) { return std::nullopt; }
     if (!device->hasFeature(rhi::Feature::TimestampQuery)) { return std::nullopt; }
 

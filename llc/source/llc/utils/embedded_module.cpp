@@ -21,9 +21,9 @@ Slang::ComPtr<slang::IModule> load_embedded_module(
 }
 
 Slang::ComPtr<slang::IModule> load_embedded_module(
-    rhi::IDevice *device,
+    Context &context,
     EmbededModuleDesc const &desc) {
-    return load_embedded_module(device->getSlangSession(), desc);
+    return load_embedded_module(context.slang_session(), desc);
 }
 
 } // namespace llc

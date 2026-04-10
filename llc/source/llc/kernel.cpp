@@ -61,9 +61,11 @@ auto build_search_directories(std::span<const char *const> extra_search_paths) {
 } // namespace
 
 ComPtr<slang::IModule> load_shader_module(
-    slang::ISession *slang_session,
+    Context &context,
     const char *module_name,
     std::span<const char *const> extra_search_paths) {
+
+    auto *slang_session = context.slang_session();
 
     ComPtr<slang::IModule> slang_module;
     ComPtr<slang::IBlob> diagnostics;
@@ -105,7 +107,7 @@ ComPtr<slang::IModule> load_shader_module(
 
 Kernel Kernel::load(
     slang::IModule *slang_module,
-    rhi::IDevice *device,
+    Context &context,
     const char *entry_point_name) {
 
     ComPtr<slang::IEntryPoint> entry_point;
@@ -117,6 +119,7 @@ Kernel Kernel::load(
     Kernel res;
 
     rhi::ComputePipelineDesc desc;
+    auto *device = context.device();
     auto program = device->createShaderProgram(linked_program);
     desc.program = program.get();
     res.program_ = program;

@@ -4,9 +4,10 @@
 #include <slang-rhi/shader-cursor.h>
 
 #include <fmt/core.h>
-#include <vector>
 #include <random>
+#include <vector>
 
+#include <llc/context.h>
 #include <llc/types.hpp>
 #include <llc/kernel.h>
 #include <llc/blob.h>
@@ -16,8 +17,7 @@ namespace llc {
 using Slang::ComPtr;
 
 struct App final {
-    ComPtr<rhi::IDevice> device_;
-    ComPtr<slang::ISession> slang_session_;
+    Context context_;
     ComPtr<slang::IModule> slang_module_;
 
     Kernel compute_kernel_;
@@ -27,14 +27,13 @@ struct App final {
 
 SlangResult App::load_kernels() {
     const char *kernel_name = "a+b";
-    slang_session_ = device_->getSlangSession();
-    slang_module_ = load_shader_module(slang_session_.get(), kernel_name);
+    slang_module_ = load_shader_module(context_, kernel_name);
     if (!slang_module_) {
         fmt::println("Failed to load shader module: {}", kernel_name);
         return SLANG_FAIL;
     }
 
-    compute_kernel_ = Kernel::load(slang_module_.get(), device_.get(), "computeMain");
+    compute_kernel_ = Kernel::load(slang_module_.get(), context_, "computeMain");
     if (!compute_kernel_) {
         fmt::println("Failed to load compute program.");
         return SLANG_FAIL;
@@ -47,11 +46,13 @@ i32 App::run(i32 argc, const char *argv[]) {
     rhi::DeviceDesc device_desc;
     device_desc.slang.targetProfile = "spirv_1_6";
     device_desc.deviceType = rhi::DeviceType::Vulkan;
-    device_ = rhi::getRHI()->createDevice(device_desc);
-    if (!device_) {
+    auto context = Context::create(ContextDesc{.device = device_desc});
+    if (!context) {
         fmt::println("Failed to create RHI device.");
         return -1;
     }
+    context_ = std::move(*context);
+    auto *device = context_.device();
     SLANG_RETURN_ON_FAIL(load_kernels());
 
     /// generate 16k float numbers for each A and B, allocate buffer for input and output
@@ -78,14 +79,14 @@ i32 App::run(i32 argc, const char *argv[]) {
         .defaultState = rhi::ResourceState::UnorderedAccess,
     };
 
-    auto device_buffer = device_->createBuffer(buffer_desc, init_data.data());
+    auto device_buffer = device->createBuffer(buffer_desc, init_data.data());
     if (!device_buffer) {
         fmt::println("Failed to create device buffer.");
         return -1;
     }
 
     /// Note: it seems slang-rhi only supports graphics queue type for now
-    auto queue = device_->getQueue(rhi::QueueType::Graphics);
+    auto queue = context_.queue();
     ComPtr<rhi::ICommandEncoder> encoder;
     queue->createCommandEncoder(encoder.writeRef());
     {
@@ -112,7 +113,7 @@ i32 App::run(i32 argc, const char *argv[]) {
     queue->waitOnHost();
     ComPtr<ISlangBlob> blob;
     const auto byte_size = sizeof(f32) * element_count * 3;
-    if (SLANG_FAILED(device_->readBuffer(device_buffer, 0, byte_size, blob.writeRef()))) {
+    if (SLANG_FAILED(device->readBuffer(device_buffer, 0, byte_size, blob.writeRef()))) {
         fmt::println("Failed to read back buffer data from device.");
         return -1;
     }

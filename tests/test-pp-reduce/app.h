@@ -1,14 +1,12 @@
 #pragma once
 
-#include <slang-rhi.h>
-#include <slang-com-ptr.h>
-
+#include <llc/context.h>
 #include <llc/types.hpp>
 
 namespace llc {
 
 struct App final {
-    Slang::ComPtr<rhi::IDevice> device_;
+    Context context_;
 
     i32 run(i32 argc, const char *argv[]);
 };

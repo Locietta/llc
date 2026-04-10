@@ -27,27 +27,27 @@ i32 App::run(f32 time_seconds) {
     device_desc.slang.targetProfile = "spirv_1_6";
     device_desc.deviceType = rhi::DeviceType::Vulkan;
 
-    device_ = rhi::getRHI()->createDevice(device_desc);
-    if (!device_) {
+    auto context = Context::create(ContextDesc{.device = device_desc});
+    if (!context) {
         fmt::println("Failed to create Vulkan device.");
         return -1;
     }
+    context_ = std::move(*context);
 
-    slang_session_ = device_->getSlangSession();
-    slang_module_ = load_shader_module(slang_session_.get(), k_shader_module_name);
+    slang_module_ = load_shader_module(context_, k_shader_module_name);
     if (!slang_module_) {
         fmt::println("Failed to load shader module: {}", k_shader_module_name);
         return -1;
     }
 
-    shader_kernel_ = Kernel::load(slang_module_.get(), device_.get(), k_shader_entry_point);
+    shader_kernel_ = Kernel::load(slang_module_.get(), context_, k_shader_entry_point);
     if (!shader_kernel_) {
         fmt::println("Failed to load compute kernel.");
         return -1;
     }
 
     auto output_texture = create_texture_2d(
-        device_.get(),
+        context_,
         k_image_width,
         k_image_height,
         rhi::Format::RGBA8Unorm,
@@ -58,14 +58,14 @@ i32 App::run(f32 time_seconds) {
         return -1;
     }
 
-    auto queue = device_->getQueue(rhi::QueueType::Graphics);
+    auto queue = context_.queue();
     auto encoder = queue->createCommandEncoder();
     auto *pass = encoder->beginComputePass();
     {
         auto root_object = pass->bindPipeline(shader_kernel_.pipeline_.get());
         auto root_cursor = rhi::ShaderCursor(root_object);
         const u32x2 dims{k_image_width, k_image_height};
-        auto output_view = create_texture_view(device_.get(), output_texture.get());
+        auto output_view = create_texture_view(context_, output_texture.get());
         SLANG_RETURN_ON_FAIL(root_cursor["dims"].setData(dims));
         SLANG_RETURN_ON_FAIL(root_cursor["timeSeconds"].setData(time_seconds));
         SLANG_RETURN_ON_FAIL(root_cursor["outputTexture"].setBinding(output_view));
@@ -81,7 +81,7 @@ i32 App::run(f32 time_seconds) {
     queue->submit(command_buffer.get());
     queue->waitOnHost();
 
-    const auto image = read_texture_to_image(device_.get(), output_texture.get());
+    const auto image = read_texture_to_image(context_, output_texture.get());
     if (!image) {
         fmt::println("Failed to read back output texture.");
         return -1;

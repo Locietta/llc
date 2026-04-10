@@ -4,6 +4,7 @@
 
 #include <slang-rhi.h>
 
+#include <llc/context.h>
 #include <llc/types.hpp>
 
 namespace llc {
@@ -49,6 +50,6 @@ GpuSpan make_span(rhi::IBuffer *buffer, u64 byte_offset, u64 element_count) {
 }
 
 Slang::ComPtr<slang::IModule> load_span_module(slang::ISession *session);
-Slang::ComPtr<slang::IModule> load_span_module(rhi::IDevice *device);
+Slang::ComPtr<slang::IModule> load_span_module(Context &context);
 
 } // namespace llc

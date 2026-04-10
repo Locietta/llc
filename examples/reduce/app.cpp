@@ -49,12 +49,12 @@ i32 App::run(i32 argc, const char *argv[]) {
         return -1;
     }
 
-    device_ = rhi::getRHI()->createDevice(device_desc);
-    if (!device_) {
+    auto context = Context::create(ContextDesc{.device = device_desc});
+    if (!context) {
         fmt::println("Failed to create RHI device.");
         return -1;
     }
-    slang_session_ = device_->getSlangSession();
+    context_ = std::move(*context);
 
     constexpr u32 element_count = 1 << 25;
 
@@ -69,13 +69,13 @@ i32 App::run(i32 argc, const char *argv[]) {
 
     for (const auto module_name : {"naive", "wave"}) {
         fmt::println("Running reduce with module: {}", module_name);
-        auto module = load_shader_module(slang_session_.get(), module_name);
+        auto module = load_shader_module(context_, module_name);
         if (!module) {
             fmt::println("Failed to load shader module: {}", module_name);
             return -1;
         }
 
-        auto kernel = Kernel::load(module.get(), device_.get(), "main");
+        auto kernel = Kernel::load(module.get(), context_, "main");
         if (!kernel) {
             fmt::println("Failed to load kernel from module.");
             return -1;
@@ -85,7 +85,7 @@ i32 App::run(i32 argc, const char *argv[]) {
         const usize buffer_byte_size = sizeof(f32) * element_count;
 
         auto device_buffer = create_structured_buffer<f32>(
-            device_.get(),
+            context_,
             rhi::BufferUsage::ShaderResource | rhi::BufferUsage::CopySource |
                 rhi::BufferUsage::CopyDestination | rhi::BufferUsage::UnorderedAccess,
             init_data);
@@ -95,7 +95,7 @@ i32 App::run(i32 argc, const char *argv[]) {
             return -1;
         }
 
-        auto queue = device_->getQueue(rhi::QueueType::Graphics);
+        auto queue = context_.queue();
         auto encoder = queue->createCommandEncoder();
         if (!encoder) {
             fmt::println("Failed to create command encoder.");
@@ -103,7 +103,7 @@ i32 App::run(i32 argc, const char *argv[]) {
         }
 
         const auto reduce_times = calc_reduce_times(element_count, thread_group_size);
-        auto gpu_timer = GpuTimer::create(device_.get(), reduce_times);
+        auto gpu_timer = GpuTimer::create(context_, reduce_times);
 
         if (!gpu_timer) {
             fmt::println("Warning: GPU timer is not available.");
@@ -158,7 +158,7 @@ i32 App::run(i32 argc, const char *argv[]) {
             fmt::println("Total GPU time: {:.3f} us", total_gpu_time_sec * 1e6);
         }
 
-        auto result_view = read_buffer<f32>(device_.get(), device_buffer.get(), 0, 1);
+        auto result_view = read_buffer<f32>(context_, device_buffer.get(), 0, 1);
         if (!result_view) {
             fmt::println("Failed to read back buffer data from device.");
             return -1;
@@ -170,7 +170,7 @@ i32 App::run(i32 argc, const char *argv[]) {
     }
 
     auto reference_buffer = create_structured_buffer<f32>(
-        device_.get(),
+        context_,
         rhi::BufferUsage::ShaderResource | rhi::BufferUsage::CopySource |
             rhi::BufferUsage::CopyDestination | rhi::BufferUsage::UnorderedAccess,
         init_data);
@@ -179,7 +179,7 @@ i32 App::run(i32 argc, const char *argv[]) {
         return -1;
     }
 
-    const f32 llc_reduce_result = pp::reduce_sum<f32>(device_.get(), reference_buffer.get(), element_count);
+    const f32 llc_reduce_result = pp::reduce_sum<f32>(context_, reference_buffer.get(), element_count);
 
     fmt::println("llc::pp::reduce result: {}", llc_reduce_result);
     fmt::println("CPU reference result: {:.0f}", cpu_result);

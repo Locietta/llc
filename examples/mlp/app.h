@@ -3,10 +3,9 @@
 #include <filesystem>
 #include <vector>
 
-#include <slang-com-ptr.h>
-#include <slang-rhi.h>
 #include <slang.h>
 
+#include <llc/context.h>
 #include <llc/kernel.h>
 #include <llc/types.hpp>
 
@@ -31,8 +30,7 @@ struct App final {
         usize weights_grad_training_size = 0;
     };
 
-    Slang::ComPtr<rhi::IDevice> device_;
-    Slang::ComPtr<slang::ISession> slang_session_;
+    Context context_;
     Slang::ComPtr<slang::IModule> slang_module_;
 
     Kernel learn_grad_kernel_;

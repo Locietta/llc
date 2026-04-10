@@ -6,13 +6,14 @@
 #include <slang-com-ptr.h>
 #include <slang-rhi.h>
 
+#include <llc/context.h>
 #include <llc/image.h>
 #include <llc/types.hpp>
 
 namespace llc {
 
 Slang::ComPtr<rhi::ITexture> create_texture_2d(
-    rhi::IDevice *device,
+    Context &context,
     u32 width,
     u32 height,
     rhi::Format format,
@@ -20,7 +21,7 @@ Slang::ComPtr<rhi::ITexture> create_texture_2d(
     rhi::ResourceState default_state = rhi::ResourceState::UnorderedAccess);
 
 Slang::ComPtr<rhi::ITexture> create_texture_2d(
-    rhi::IDevice *device,
+    Context &context,
     const Image &image,
     u32 mip_count = 1,
     rhi::Format format = rhi::Format::Undefined,
@@ -28,7 +29,7 @@ Slang::ComPtr<rhi::ITexture> create_texture_2d(
     rhi::ResourceState default_state = rhi::ResourceState::ShaderResource);
 
 Slang::ComPtr<rhi::ITexture> create_texture_2d(
-    rhi::IDevice *device,
+    Context &context,
     std::span<const Image> mip_images,
     rhi::Format format = rhi::Format::Undefined,
     rhi::TextureUsage usage = rhi::TextureUsage::ShaderResource | rhi::TextureUsage::CopyDestination,
@@ -45,17 +46,17 @@ struct TextureViewRange final {
 };
 
 Slang::ComPtr<rhi::ITextureView> create_texture_view(
-    rhi::IDevice *device,
+    Context &context,
     rhi::ITexture *texture,
     const TextureViewRange &range = {});
 
 inline Slang::ComPtr<rhi::ITextureView> create_texture_view(
-    rhi::IDevice *device,
+    Context &context,
     rhi::ITexture *texture,
     u32 mip_level,
     u32 array_layer = 0) {
     return create_texture_view(
-        device,
+        context,
         texture,
         TextureViewRange{
             .base_layer = array_layer,
@@ -66,7 +67,7 @@ inline Slang::ComPtr<rhi::ITextureView> create_texture_view(
 }
 
 Image read_texture_to_image(
-    rhi::IDevice *device,
+    Context &context,
     rhi::ITexture *texture,
     u32 array_layer = 0,
     u32 mip_level = 0);

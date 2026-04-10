@@ -48,12 +48,12 @@ std::string mip_format_specialization_expr(rhi::Format format) {
     }
 }
 
-Slang::ComPtr<rhi::IComputePipeline> create_generate_mips_pipeline(rhi::IDevice *device, rhi::Format format) {
-    auto module = load_embedded_module(device, EmbededModuleDesc{
-                                                   .name = "generate_mips",
-                                                   .start = _binary_generate_mips_slang_module_start,
-                                                   .end = _binary_generate_mips_slang_module_end,
-                                               });
+Slang::ComPtr<rhi::IComputePipeline> create_generate_mips_pipeline(Context &context, rhi::Format format) {
+    auto module = load_embedded_module(context, EmbededModuleDesc{
+                                                    .name = "generate_mips",
+                                                    .start = _binary_generate_mips_slang_module_start,
+                                                    .end = _binary_generate_mips_slang_module_end,
+                                                });
     if (!module) return nullptr;
 
     Slang::ComPtr<slang::IEntryPoint> entry_point;
@@ -85,6 +85,7 @@ Slang::ComPtr<rhi::IComputePipeline> create_generate_mips_pipeline(rhi::IDevice 
     }
     diagnose_if_needed(diagnostics.get());
 
+    auto *device = context.device();
     auto program = device->createShaderProgram(linked_program);
     if (!program) return nullptr;
 
@@ -109,11 +110,11 @@ bool validate_mip_image_chain(std::span<const Image> mip_images, rhi::Format for
 }
 
 bool upload_mip_images(
-    rhi::IDevice *device,
+    Context &context,
     rhi::ITexture *texture,
     std::span<const Image> mip_images) {
 
-    auto queue = device->getQueue(rhi::QueueType::Graphics);
+    auto queue = context.queue();
     auto encoder = queue->createCommandEncoder();
     for (u32 mip = 0; mip < mip_images.size(); ++mip) {
         const auto &image = mip_images[mip];
@@ -139,7 +140,7 @@ bool upload_mip_images(
     return true;
 }
 
-bool generate_texture_mips(rhi::IDevice *device, rhi::ITexture *texture) {
+bool generate_texture_mips(Context &context, rhi::ITexture *texture) {
     const auto &desc = texture->getDesc();
     if (desc.mipCount <= 1) return true;
 
@@ -155,13 +156,13 @@ bool generate_texture_mips(rhi::IDevice *device, rhi::ITexture *texture) {
         }
     }();
 
-    auto pipeline = get_cached_pipeline(g_buffer_pipelines, device, pipeline_key,
-                                        [&desc](rhi::IDevice *d) {
-                                            return create_generate_mips_pipeline(d, desc.format);
+    auto pipeline = get_cached_pipeline(pipeline_cache(context), pipeline_key,
+                                        [&context, &desc]() {
+                                            return create_generate_mips_pipeline(context, desc.format);
                                         });
     if (!pipeline) return false;
 
-    auto queue = device->getQueue(rhi::QueueType::Graphics);
+    auto queue = context.queue();
     auto encoder = queue->createCommandEncoder();
     for (u32 mip = 1; mip < desc.mipCount; ++mip) {
         const auto src_width = std::max(1u, desc.size.width >> (mip - 1));
@@ -169,8 +170,8 @@ bool generate_texture_mips(rhi::IDevice *device, rhi::ITexture *texture) {
         const auto dst_width = std::max(1u, desc.size.width >> mip);
         const auto dst_height = std::max(1u, desc.size.height >> mip);
 
-        auto src_view = create_texture_view(device, texture, mip - 1);
-        auto dst_view = create_texture_view(device, texture, mip);
+        auto src_view = create_texture_view(context, texture, mip - 1);
+        auto dst_view = create_texture_view(context, texture, mip);
         auto *pass = encoder->beginComputePass();
         {
             auto root_object = pass->bindPipeline(pipeline.get());
@@ -195,7 +196,7 @@ bool generate_texture_mips(rhi::IDevice *device, rhi::ITexture *texture) {
 }
 
 Slang::ComPtr<rhi::ITexture> create_texture_2d(
-    rhi::IDevice *device,
+    Context &context,
     u32 width,
     u32 height,
     rhi::Format format,
@@ -212,11 +213,11 @@ Slang::ComPtr<rhi::ITexture> create_texture_2d(
     desc.format = format;
     desc.usage = usage;
     desc.defaultState = default_state;
-    return device->createTexture(desc);
+    return context.device()->createTexture(desc);
 }
 
 Slang::ComPtr<rhi::ITexture> create_texture_2d(
-    rhi::IDevice *device,
+    Context &context,
     const Image &image,
     u32 mip_count,
     rhi::Format format,
@@ -253,19 +254,19 @@ Slang::ComPtr<rhi::ITexture> create_texture_2d(
     desc.usage = texture_usage;
     desc.defaultState = default_state;
 
-    auto texture = device->createTexture(desc);
+    auto texture = context.device()->createTexture(desc);
     if (!texture) return nullptr;
-    if (!upload_mip_images(device, texture.get(), std::span<const Image>(&converted_image, 1))) {
+    if (!upload_mip_images(context, texture.get(), std::span<const Image>(&converted_image, 1))) {
         return nullptr;
     }
-    if (auto_generate_mips && !generate_texture_mips(device, texture.get())) {
+    if (auto_generate_mips && !generate_texture_mips(context, texture.get())) {
         return nullptr;
     }
     return texture;
 }
 
 Slang::ComPtr<rhi::ITexture> create_texture_2d(
-    rhi::IDevice *device,
+    Context &context,
     std::span<const Image> mip_images,
     rhi::Format format,
     rhi::TextureUsage usage,
@@ -296,16 +297,16 @@ Slang::ComPtr<rhi::ITexture> create_texture_2d(
     desc.usage = usage;
     desc.defaultState = default_state;
 
-    auto texture = device->createTexture(desc);
+    auto texture = context.device()->createTexture(desc);
     if (!texture) return nullptr;
-    if (!upload_mip_images(device, texture.get(), converted_span)) {
+    if (!upload_mip_images(context, texture.get(), converted_span)) {
         return nullptr;
     }
     return texture;
 }
 
 Slang::ComPtr<rhi::ITextureView> create_texture_view(
-    rhi::IDevice *device,
+    Context &context,
     rhi::ITexture *texture,
     const TextureViewRange &range) {
 
@@ -319,18 +320,18 @@ Slang::ComPtr<rhi::ITextureView> create_texture_view(
         .mipCount = range.mip_count,
     };
     desc.sampler = range.sampler;
-    return device->createTextureView(texture, desc);
+    return context.device()->createTextureView(texture, desc);
 }
 
 Image read_texture_to_image(
-    rhi::IDevice *device,
+    Context &context,
     rhi::ITexture *texture,
     u32 array_layer,
     u32 mip_level) {
 
     Slang::ComPtr<ISlangBlob> blob;
     rhi::SubresourceLayout layout{};
-    if (SLANG_FAILED(device->readTexture(texture, array_layer, mip_level, blob.writeRef(), &layout))) {
+    if (SLANG_FAILED(context.device()->readTexture(texture, array_layer, mip_level, blob.writeRef(), &layout))) {
         assert(false && "Failed to read back texture data from device.");
         return {};
     }

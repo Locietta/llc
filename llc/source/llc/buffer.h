@@ -6,12 +6,13 @@
 
 #include <span>
 
+#include <llc/context.h>
 #include <llc/types.hpp>
 
 namespace llc {
 
 Slang::ComPtr<rhi::IBuffer> create_structured_buffer(
-    rhi::IDevice *device,
+    Context &context,
     u64 byte_size,
     u32 element_size,
     rhi::BufferUsage usage,
@@ -21,13 +22,13 @@ Slang::ComPtr<rhi::IBuffer> create_structured_buffer(
 
 template <llc::standard_layout T>
 Slang::ComPtr<rhi::IBuffer> create_structured_buffer(
-    rhi::IDevice *device,
+    Context &context,
     rhi::BufferUsage usage,
     std::span<const T> init_data = {},
     rhi::MemoryType memory_type = rhi::MemoryType::DeviceLocal,
     rhi::ResourceState rc_state = rhi::ResourceState::UnorderedAccess) {
     return create_structured_buffer(
-        device,
+        context,
         init_data.size_bytes(),
         sizeof(T),
         usage,
@@ -65,14 +66,14 @@ struct ReadbackView final {
 
 template <llc::standard_layout T>
 ReadbackView<T> read_buffer(
-    rhi::IDevice *device,
+    Context &context,
     rhi::IBuffer *buffer,
     rhi::Offset offset,
     u64 size) {
 
     Slang::ComPtr<ISlangBlob> blob;
     const rhi::Size byte_size = size * sizeof(T);
-    if (SLANG_FAILED(device->readBuffer(buffer, offset, byte_size, blob.writeRef()))) {
+    if (SLANG_FAILED(context.device()->readBuffer(buffer, offset, byte_size, blob.writeRef()))) {
         assert(false && "Failed to read back buffer data from device.");
         return {};
     }
@@ -80,7 +81,7 @@ ReadbackView<T> read_buffer(
 }
 
 Slang::ComPtr<rhi::IBuffer> create_buffer(
-    rhi::IDevice *device,
+    Context &context,
     u64 byte_size,
     rhi::BufferUsage usage,
     const void *init_data = nullptr,
@@ -89,13 +90,13 @@ Slang::ComPtr<rhi::IBuffer> create_buffer(
 
 template <llc::standard_layout T>
 Slang::ComPtr<rhi::IBuffer> create_buffer(
-    rhi::IDevice *device,
+    Context &context,
     rhi::BufferUsage usage,
     std::span<const T> init_data = {},
     rhi::MemoryType memory_type = rhi::MemoryType::DeviceLocal,
     rhi::ResourceState rc_state = rhi::ResourceState::UnorderedAccess) {
     return create_buffer(
-        device,
+        context,
         init_data.size_bytes(),
         usage,
         init_data.data(),
@@ -105,13 +106,13 @@ Slang::ComPtr<rhi::IBuffer> create_buffer(
 
 template <llc::standard_layout T>
 Slang::ComPtr<rhi::IBuffer> create_buffer(
-    rhi::IDevice *device,
+    Context &context,
     u64 element_count,
     rhi::BufferUsage usage,
     rhi::MemoryType memory_type = rhi::MemoryType::DeviceLocal,
     rhi::ResourceState rc_state = rhi::ResourceState::UnorderedAccess) {
     return create_buffer(
-        device,
+        context,
         element_count * sizeof(T),
         usage,
         nullptr,
@@ -120,7 +121,7 @@ Slang::ComPtr<rhi::IBuffer> create_buffer(
 }
 
 /// clear buffer to all zeros, slang-rhi does not support clear with values currently
-void clear_buffer(rhi::IDevice *device,
+void clear_buffer(Context &context,
                   rhi::IBuffer *buffer,
                   rhi::BufferRange range = rhi::kEntireBuffer);
 

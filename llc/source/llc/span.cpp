@@ -19,7 +19,7 @@ Slang::ComPtr<slang::IModule> load_span_module(slang::ISession *session) {
                                          });
 }
 
-Slang::ComPtr<slang::IModule> load_span_module(rhi::IDevice *device) {
-    return load_span_module(device->getSlangSession());
+Slang::ComPtr<slang::IModule> load_span_module(Context &context) {
+    return load_span_module(context.slang_session());
 }
 } // namespace llc

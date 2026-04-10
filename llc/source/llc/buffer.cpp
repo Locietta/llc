@@ -3,7 +3,7 @@
 namespace llc {
 
 Slang::ComPtr<rhi::IBuffer> create_structured_buffer(
-    rhi::IDevice *device,
+    Context &context,
     u64 byte_size,
     u32 element_size,
     rhi::BufferUsage usage,
@@ -19,11 +19,11 @@ Slang::ComPtr<rhi::IBuffer> create_structured_buffer(
         .defaultState = rc_state,
     };
 
-    return device->createBuffer(buffer_desc, init_data);
+    return context.device()->createBuffer(buffer_desc, init_data);
 }
 
 Slang::ComPtr<rhi::IBuffer> create_buffer(
-    rhi::IDevice *device,
+    Context &context,
     u64 byte_size,
     rhi::BufferUsage usage,
     const void *init_data,
@@ -37,13 +37,13 @@ Slang::ComPtr<rhi::IBuffer> create_buffer(
         .defaultState = rc_state,
     };
 
-    return device->createBuffer(buffer_desc, init_data);
+    return context.device()->createBuffer(buffer_desc, init_data);
 }
 
-void clear_buffer(rhi::IDevice *device,
+void clear_buffer(Context &context,
                   rhi::IBuffer *buffer,
                   rhi::BufferRange range) {
-    auto queue = device->getQueue(rhi::QueueType::Graphics);
+    auto queue = context.queue();
     auto encoder = queue->createCommandEncoder();
     encoder->clearBuffer(buffer, range);
     auto command_buffer = encoder->finish();

@@ -141,7 +141,7 @@ LLC_DEFINE_REDUCE_TEXTURE_TYPE_INFO(f32, rhi::Format::R32Float, "float");
 LLC_DEFINE_REDUCE_TEXTURE_TYPE_INFO(f32x4, rhi::Format::RGBA32Float, "float4");
 
 Slang::ComPtr<rhi::IComputePipeline> create_linked_pipeline(
-    rhi::IDevice *device,
+    Context &context,
     slang::ISession *session,
     slang::IModule *main_module,
     const std::string &config_name,
@@ -150,6 +150,7 @@ Slang::ComPtr<rhi::IComputePipeline> create_linked_pipeline(
     const slang::SpecializationArg *specialization_args = nullptr,
     usize specialization_arg_count = 0) {
 
+    auto *device = context.device();
     if (!device || !session || !main_module) return nullptr;
 
     Slang::ComPtr<slang::IBlob> diagnostics;
@@ -210,9 +211,10 @@ Slang::ComPtr<rhi::IComputePipeline> create_linked_pipeline(
 }
 
 template <typename T>
-Slang::ComPtr<rhi::IComputePipeline> create_linked_texture_pipeline(rhi::IDevice *device) {
+Slang::ComPtr<rhi::IComputePipeline> create_linked_texture_pipeline(Context &context) {
     using ReduceInfo = ReduceTypeInfo<T>;
     using TextureInfo = ReduceTextureTypeInfo<T>;
+    auto *device = context.device();
 
     auto session = create_linking_session(device);
     if (!session) return nullptr;
@@ -302,14 +304,17 @@ SlangResult encode_buffer_pass(
 
 template <typename T>
 SlangResult encode_texture_pass(
-    rhi::IDevice *device,
+    Context &context,
     rhi::ICommandEncoder *encoder,
     rhi::ITexture *source,
     u64 count,
     rhi::IBuffer *result) {
 
     using Info = ReduceTextureTypeInfo<T>;
-    auto pipeline = get_cached_pipeline(g_buffer_pipelines, device, Info::k_pipeline_key, create_linked_texture_pipeline<T>);
+    auto pipeline = get_cached_pipeline(
+        pipeline_cache(context),
+        Info::k_pipeline_key,
+        [&context]() { return create_linked_texture_pipeline<T>(context); });
     if (!pipeline) return SLANG_FAIL;
 
     const auto group_count = static_cast<u32>(next_reduce_count(count));
@@ -337,17 +342,18 @@ usize reduce_sum_scratch_size(usize count) {
 
 template <typename T>
 SlangResult encode_reduce_sum(
-    rhi::IDevice *device,
+    Context &context,
     rhi::ICommandEncoder *encoder,
     rhi::IBuffer *source,
     usize count,
     rhi::IBuffer *result) {
 
-    assert(device && encoder && source && result);
+    assert(context.device() && encoder && source && result);
 
     using Info = ReduceTypeInfo<T>;
-    auto pipeline = get_cached_pipeline(g_buffer_pipelines, device, Info::k_slang_type, [](rhi::IDevice *d) {
-        auto session = create_linking_session(d);
+    auto pipeline = get_cached_pipeline(pipeline_cache(context), Info::k_slang_type, [&context]() {
+        auto *device = context.device();
+        auto session = create_linking_session(device);
         if (!session) return Slang::ComPtr<rhi::IComputePipeline>{};
 
         auto span = load_span_module(session.get());
@@ -359,7 +365,13 @@ SlangResult encode_reduce_sum(
                                                           });
 
         if (!span || !reduce) return Slang::ComPtr<rhi::IComputePipeline>{};
-        return create_linked_pipeline(d, session.get(), reduce.get(), Info::k_config_name, Info::k_config_source, "reduce");
+        return create_linked_pipeline(
+            context,
+            session.get(),
+            reduce.get(),
+            Info::k_config_name,
+            Info::k_config_source,
+            "reduce");
     });
     if (!pipeline) return SLANG_FAIL;
 
@@ -377,35 +389,35 @@ SlangResult encode_reduce_sum(
 }
 
 template <typename T>
-T reduce_sum(rhi::IDevice *device, rhi::IBuffer *source, usize count) {
-    assert(device && source);
+T reduce_sum(Context &context, rhi::IBuffer *source, usize count) {
+    assert(context.device() && source);
 
     const auto result_size = reduce_sum_scratch_size<T>(count);
     auto result = create_buffer(
-        device,
+        context,
         result_size,
         rhi::BufferUsage::UnorderedAccess | rhi::BufferUsage::CopySource | rhi::BufferUsage::CopyDestination);
 
-    auto queue = device->getQueue(rhi::QueueType::Graphics);
+    auto queue = context.queue();
     auto encoder = queue->createCommandEncoder();
-    encode_reduce_sum<T>(device, encoder.get(), source, count, result.get());
+    encode_reduce_sum<T>(context, encoder.get(), source, count, result.get());
 
     auto command_buffer = encoder->finish();
     queue->submit(command_buffer);
     queue->waitOnHost();
 
-    auto readback = read_buffer<T>(device, result.get(), 0, 1);
+    auto readback = read_buffer<T>(context, result.get(), 0, 1);
     return readback[0];
 }
 
 template <typename T>
 SlangResult encode_reduce_texture_sum(
-    rhi::IDevice *device,
+    Context &context,
     rhi::ICommandEncoder *encoder,
     rhi::ITexture *source,
     rhi::IBuffer *result) {
 
-    assert(device && encoder && source && result);
+    assert(context.device() && encoder && source && result);
 
     using Info = ReduceTextureTypeInfo<T>;
     const auto &desc = source->getDesc();
@@ -413,29 +425,29 @@ SlangResult encode_reduce_texture_sum(
     if (desc.format != Info::k_format) return SLANG_FAIL;
 
     const auto count = static_cast<usize>(desc.size.width) * static_cast<usize>(desc.size.height);
-    SLANG_RETURN_ON_FAIL(encode_texture_pass<T>(device, encoder, source, count, result));
+    SLANG_RETURN_ON_FAIL(encode_texture_pass<T>(context, encoder, source, count, result));
     const auto reduced_count = next_reduce_count(count);
     if (reduced_count <= 1) return SLANG_OK;
 
     encoder->globalBarrier();
-    return encode_reduce_sum<T>(device, encoder, result, reduced_count, result);
+    return encode_reduce_sum<T>(context, encoder, result, reduced_count, result);
 }
 
 template <typename T>
-T reduce_texture_sum(rhi::IDevice *device, rhi::ITexture *source) {
-    assert(device && source);
+T reduce_texture_sum(Context &context, rhi::ITexture *source) {
+    assert(context.device() && source);
 
     const auto &desc = source->getDesc();
     const auto count = static_cast<usize>(desc.size.width) * static_cast<usize>(desc.size.height);
     const auto result_size = reduce_sum_scratch_size<T>(count);
     auto result = create_buffer(
-        device,
+        context,
         result_size,
         rhi::BufferUsage::UnorderedAccess | rhi::BufferUsage::CopySource | rhi::BufferUsage::CopyDestination);
 
-    auto queue = device->getQueue(rhi::QueueType::Graphics);
+    auto queue = context.queue();
     auto encoder = queue->createCommandEncoder();
-    if (SLANG_FAILED(encode_reduce_texture_sum<T>(device, encoder.get(), source, result.get()))) {
+    if (SLANG_FAILED(encode_reduce_texture_sum<T>(context, encoder.get(), source, result.get()))) {
         return {};
     }
 
@@ -443,7 +455,7 @@ T reduce_texture_sum(rhi::IDevice *device, rhi::ITexture *source) {
     queue->submit(command_buffer);
     queue->waitOnHost();
 
-    auto readback = read_buffer<T>(device, result.get(), 0, 1);
+    auto readback = read_buffer<T>(context, result.get(), 0, 1);
     return readback[0];
 }
 
@@ -451,13 +463,13 @@ T reduce_texture_sum(rhi::IDevice *device, rhi::ITexture *source) {
 #define LLC_INSTANTIATE_REDUCE(T)                                                                                     \
     template usize reduce_sum_scratch_size<T>(usize);                                                                 \
     template SlangResult encode_reduce_sum<T>(                                                                        \
-        rhi::IDevice *, rhi::ICommandEncoder *, rhi::IBuffer *, usize, rhi::IBuffer *);                               \
-    template T reduce_sum<T>(rhi::IDevice *, rhi::IBuffer *, usize);
+        Context &, rhi::ICommandEncoder *, rhi::IBuffer *, usize, rhi::IBuffer *);                                    \
+    template T reduce_sum<T>(Context &, rhi::IBuffer *, usize);
 
 #define LLC_INSTANTIATE_REDUCE_TEXTURE(T)                                                                             \
     template SlangResult encode_reduce_texture_sum<T>(                                                                \
-        rhi::IDevice *, rhi::ICommandEncoder *, rhi::ITexture *, rhi::IBuffer *);                                     \
-    template T reduce_texture_sum<T>(rhi::IDevice *, rhi::ITexture *);
+        Context &, rhi::ICommandEncoder *, rhi::ITexture *, rhi::IBuffer *);                                          \
+    template T reduce_texture_sum<T>(Context &, rhi::ITexture *);
 
 LLC_INSTANTIATE_REDUCE(f32)
 LLC_INSTANTIATE_REDUCE(f16)
