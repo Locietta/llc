@@ -26,13 +26,13 @@ jobs:
 
       - name: Configure
         shell: pwsh
-        run: xmake f -m release -y
+        run: xmake f -vvvD -m release -y
 
       - name: Build
         shell: pwsh
-        run: xmake -a -vD -y
+        run: xmake -a -vvvD -y
 
       - name: Test
         shell: pwsh
         continue-on-error: true # GPU required; CPU backend lacks wave intrinsics
-        run: xmake test -vD
+        run: xmake test -vvvD
