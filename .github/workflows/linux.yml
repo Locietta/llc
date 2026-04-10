@@ -28,6 +28,7 @@ jobs:
             build-essential \
             cmake \
             curl \
+            wget \
             jq \
             ninja-build \
             libvulkan-dev \
@@ -47,8 +48,8 @@ jobs:
           test -n "$SLANG_URL"
 
           mkdir -p "$HOME/.local/slang"
-          curl -fsSL "$SLANG_URL" -o /tmp/slang.tar.gz
-          tar -xzf /tmp/slang.tar.gz -C "$HOME/.local/slang" --strip-components=1
+          wget -O /tmp/slang.tar.gz "$SLANG_URL"
+          tar -xzf /tmp/slang.tar.gz -C "$HOME/.local/slang"
 
           echo "$HOME/.local/slang/bin" >> "$GITHUB_PATH"
           echo "SLANG_PATH=$HOME/.local/slang" >> "$GITHUB_ENV"
