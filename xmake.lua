@@ -9,7 +9,6 @@ if is_os("windows") then
     -- set_toolchains("clang-cl") -- slang-rhi does not support clang-cl yet
     add_defines("_CRT_SECURE_NO_WARNINGS")
     add_defines("WIN32_LEAN_AND_MEAN", "UNICODE", "_UNICODE", "NOMINMAX", "_WINDOWS")
-    set_policy("build.optimization.lto", true)
 end
 
 add_repositories("local-repo xmake")

@@ -30,7 +30,7 @@ jobs:
 
       - name: Build
         shell: pwsh
-        run: xmake -vD -y
+        run: xmake -a -vD -y
 
       - name: Test
         shell: pwsh

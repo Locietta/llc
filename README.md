@@ -23,11 +23,11 @@ Git submodules is used for external dependencies that is not in xrepo (yet), so 
 After installing all prerequisites, you can build the project by running the following commands in the project root:
 
 ```pwsh
-xmake f -m <mode> # configure the build mode, e.g. debug or release
-xmake             # build the project
+xmake f -m <mode>  # configure the build mode, e.g. debug or release
+xmake              # build the llc core library
+xmake -g examples  # build examples
+xmake -g tests     # build tests
 ```
-
-This will build the llc library and all example projects in the `examples/` folder.
 
 ### Running examples
 
@@ -36,6 +36,8 @@ You can run the built examples using `xmake run <target>` command. For example, 
 ```pwsh
 xmake run a+b
 ```
+
+This will build the `a+b` example target if it hasn't been built yet, and then execute it.
 
 ## License
 This project is licensed under the MIT License. See the [LICENSE](/LICENSE) file for details.
