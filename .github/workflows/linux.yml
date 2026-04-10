@@ -32,7 +32,8 @@ jobs:
             jq \
             ninja-build \
             libvulkan-dev \
-            vulkan-tools
+            vulkan-tools \
+            libx11-dev
 
       - name: Install Slang
         shell: bash
