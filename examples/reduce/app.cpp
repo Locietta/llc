@@ -109,7 +109,6 @@ i32 App::run(i32 argc, const char *argv[]) {
             fmt::println("Warning: GPU timer is not available.");
         }
 
-        /// dispatch the kernelss
         for (u32 i = 0, l = element_count; i < reduce_times; i++) {
             const auto timer_scope = gpu_timer ?
                                          gpu_timer->scope(encoder.get(), fmt::format("reduce pass {:02}", i)) :
@@ -140,22 +139,18 @@ i32 App::run(i32 argc, const char *argv[]) {
         queue->submit(command_buffer.get());
 
         queue->waitOnHost();
-        ComPtr<ISlangBlob> blob;
 
         if (gpu_timer && gpu_timer->resolve()) {
             const auto labeled_durations = gpu_timer->labeled_durations();
+            const auto timestamps = gpu_timer->raw_timestamps();
 
-            fmt::println(
-                "GPU timing ({} passes, freq {} Hz):",
-                labeled_durations.size(),
-                gpu_timer->timestamp_frequency());
-
-            f64 total_gpu_time_sec = 0.0;
             for (const auto &[label, duration] : labeled_durations) {
-                total_gpu_time_sec += duration;
                 fmt::println("    [{}] {:.3f} us", label, duration * 1e6);
             }
-            fmt::println("Total GPU time: {:.3f} us", total_gpu_time_sec * 1e6);
+            if (timestamps.size() >= 2) {
+                const f64 total = gpu_timer->ticks_to_seconds(timestamps.back() - timestamps.front());
+                fmt::println("Total GPU time: {:.3f} us", total * 1e6);
+            }
         }
 
         auto result_view = read_buffer<f32>(context_, device_buffer.get(), 0, 1);
@@ -165,6 +160,91 @@ i32 App::run(i32 argc, const char *argv[]) {
         }
         const f32 gpu_result = result_view[0];
         fmt::println("reduction({}) result: {}", module_name, gpu_result);
+        fmt::println("abs error: {}", std::abs(static_cast<f64>(gpu_result) - cpu_result));
+        fmt::println("===============================");
+    }
+
+    // Ping-pong verification: use two separate buffers to confirm single-buffer aliasing is safe
+    {
+        fmt::println("Running reduce with module: wave-pingpong");
+        auto module = load_shader_module(context_, "wave");
+        if (!module) {
+            fmt::println("Failed to load shader module: wave");
+            return -1;
+        }
+
+        auto kernel = Kernel::load(module.get(), context_, "main");
+        if (!kernel) {
+            fmt::println("Failed to load kernel from module.");
+            return -1;
+        }
+
+        constexpr u32 thread_group_size = 512;
+
+        auto buffer_a = create_structured_buffer<f32>(
+            context_,
+            rhi::BufferUsage::ShaderResource | rhi::BufferUsage::CopySource |
+                rhi::BufferUsage::CopyDestination | rhi::BufferUsage::UnorderedAccess,
+            init_data);
+
+        auto buffer_b = create_buffer(
+            context_,
+            sizeof(f32) * element_count,
+            rhi::BufferUsage::ShaderResource | rhi::BufferUsage::CopySource |
+                rhi::BufferUsage::CopyDestination | rhi::BufferUsage::UnorderedAccess);
+
+        if (!buffer_a || !buffer_b) {
+            fmt::println("Failed to create device buffers.");
+            return -1;
+        }
+
+        auto queue = context_.queue();
+        auto encoder = queue->createCommandEncoder();
+        if (!encoder) {
+            fmt::println("Failed to create command encoder.");
+            return -1;
+        }
+
+        const auto reduce_times = calc_reduce_times(element_count, thread_group_size);
+
+        rhi::IBuffer *src_buf = buffer_a.get();
+        rhi::IBuffer *dst_buf = buffer_b.get();
+
+        for (u32 i = 0, l = element_count; i < reduce_times; i++) {
+            auto *pass = encoder->beginComputePass();
+            {
+                auto root_shader = pass->bindPipeline(kernel.pipeline_.get());
+                auto root_cursor = rhi::ShaderCursor(root_shader);
+
+                const u32 group_count = divide_and_round_up(l, thread_group_size);
+                const u32 input_byte_size = sizeof(f32) * l;
+                const u32 output_byte_size = sizeof(f32) * group_count;
+                l = group_count;
+
+                SLANG_RETURN_ON_FAIL(
+                    root_cursor["source"].setBinding(rhi::Binding(src_buf, rhi::BufferRange{0, input_byte_size})));
+                SLANG_RETURN_ON_FAIL(
+                    root_cursor["result"].setBinding(rhi::Binding(dst_buf, rhi::BufferRange{0, output_byte_size})));
+                pass->dispatchCompute(group_count, 1, 1);
+            }
+            pass->end();
+
+            std::swap(src_buf, dst_buf);
+        }
+
+        ComPtr<rhi::ICommandBuffer> command_buffer;
+        SLANG_RETURN_ON_FAIL(encoder->finish(command_buffer.writeRef()));
+        queue->submit(command_buffer.get());
+        queue->waitOnHost();
+
+        // Result is in src_buf (swapped after last pass)
+        auto result_view = read_buffer<f32>(context_, src_buf, 0, 1);
+        if (!result_view) {
+            fmt::println("Failed to read back buffer data from device.");
+            return -1;
+        }
+        const f32 gpu_result = result_view[0];
+        fmt::println("reduction(wave-pingpong) result: {}", gpu_result);
         fmt::println("abs error: {}", std::abs(static_cast<f64>(gpu_result) - cpu_result));
         fmt::println("===============================");
     }
@@ -179,11 +259,42 @@ i32 App::run(i32 argc, const char *argv[]) {
         return -1;
     }
 
-    const f32 llc_reduce_result = pp::reduce_sum<f32>(context_, reference_buffer.get(), element_count);
+    {
+        const auto result_size = pp::reduce_sum_scratch_size<f32>(element_count);
+        auto result_buffer = create_buffer(
+            context_,
+            result_size,
+            rhi::BufferUsage::ShaderResource | rhi::BufferUsage::UnorderedAccess | rhi::BufferUsage::CopySource |
+                rhi::BufferUsage::CopyDestination);
 
-    fmt::println("llc::pp::reduce result: {}", llc_reduce_result);
-    fmt::println("CPU reference result: {:.0f}", cpu_result);
-    fmt::println("llc::pp abs error: {}", std::abs(static_cast<f64>(llc_reduce_result) - cpu_result));
+        auto queue = context_.queue();
+        auto encoder = queue->createCommandEncoder();
+        auto gpu_timer = GpuTimer::create(context_, 1);
+
+        {
+            const auto timer_scope =
+                gpu_timer ? gpu_timer->scope(encoder.get(), "llc::pp::reduce") : GpuTimer::Scope{};
+            pp::encode_reduce_sum<f32>(
+                context_, encoder.get(), reference_buffer.get(), element_count, result_buffer.get());
+        }
+
+        auto command_buffer = encoder->finish();
+        queue->submit(command_buffer);
+        queue->waitOnHost();
+
+        if (gpu_timer && gpu_timer->resolve()) {
+            for (const auto &[label, duration] : gpu_timer->labeled_durations()) {
+                fmt::println("[{}] {:.3f} us", label, duration * 1e6);
+            }
+        }
+
+        auto readback = read_buffer<f32>(context_, result_buffer.get(), 0, 1);
+        const f32 llc_reduce_result = readback[0];
+        fmt::println("llc::pp::reduce result: {}", llc_reduce_result);
+        fmt::println("CPU reference result: {:.0f}", cpu_result);
+        fmt::println("llc::pp abs error: {}", std::abs(static_cast<f64>(llc_reduce_result) - cpu_result));
+    }
+
     return 0;
 }
 
