@@ -9,7 +9,6 @@
 #include <llc/blob.h>
 #include <llc/buffer.h>
 #include <llc/math.h>
-#include <llc/span.h>
 #include <llc/texture.h>
 
 #include <llc/utils/embedded_module.h>
@@ -89,7 +88,7 @@ struct ReduceTextureTypeInfo;
     "        if (index >= sourceSize.x * sourceSize.y) return ReduceElement(0);\n" \
     "        uint x = index % sourceSize.x;\n"                                     \
     "        uint y = index / sourceSize.x;\n"                                     \
-    "        return ReduceElement(texture.Load(int3(int(x), int(y), 0)));\n"      \
+    "        return ReduceElement(texture.Load(int3(int(x), int(y), 0)));\n"       \
     "    }\n"                                                                      \
     "};\n"
 
@@ -127,14 +126,14 @@ struct ReduceTypeInfo<f32x4> final {
         "};\n";
 };
 
-#define LLC_DEFINE_REDUCE_TEXTURE_TYPE_INFO(cpp_type, format, shader_type)              \
-    template <>                                                                          \
-    struct ReduceTextureTypeInfo<cpp_type> final {                                       \
-        static constexpr auto k_format = format;                                         \
+#define LLC_DEFINE_REDUCE_TEXTURE_TYPE_INFO(cpp_type, format, shader_type)                 \
+    template <>                                                                            \
+    struct ReduceTextureTypeInfo<cpp_type> final {                                         \
+        static constexpr auto k_format = format;                                           \
         static constexpr const char *k_config_name = "reduce_texture_config_" shader_type; \
-        static constexpr const char *k_config_source =                                   \
-            LLC_REDUCE_TEXTURE_CONFIG("reduce_config_" shader_type, shader_type);        \
-        static constexpr const char *k_pipeline_key = "reduce_texture_" shader_type;     \
+        static constexpr const char *k_config_source =                                     \
+            LLC_REDUCE_TEXTURE_CONFIG("reduce_config_" shader_type, shader_type);          \
+        static constexpr const char *k_pipeline_key = "reduce_texture_" shader_type;       \
     }
 
 LLC_DEFINE_REDUCE_TEXTURE_TYPE_INFO(f32, rhi::Format::R32Float, "float");
@@ -219,13 +218,12 @@ Slang::ComPtr<rhi::IComputePipeline> create_linked_texture_pipeline(Context &con
     auto session = create_linking_session(device);
     if (!session) return nullptr;
 
-    auto span = load_span_module(session.get());
     auto reduce = load_embedded_module(session.get(), EmbededModuleDesc{
                                                           .name = "reduce",
                                                           .start = _binary_reduce_slang_module_start,
                                                           .end = _binary_reduce_slang_module_end,
                                                       });
-    if (!span || !reduce) return nullptr;
+    if (!reduce) return nullptr;
 
     Slang::ComPtr<slang::IBlob> diagnostics;
     slang::IModule *reduce_element_module = session->loadModuleFromSourceString(
@@ -284,19 +282,17 @@ constexpr usize next_reduce_count(usize count) noexcept {
 SlangResult encode_buffer_pass(
     rhi::ICommandEncoder *encoder,
     rhi::IComputePipeline *pipeline,
-    rhi::IBuffer *source,
-    u64 count,
-    rhi::IBuffer *result,
-    u32 element_byte_size) {
+    rhi::IBuffer *source, u64 count,
+    rhi::IBuffer *result, u32 element_byte_size) {
 
     const u32 group_count = next_reduce_count(count);
     auto *pass = encoder->beginComputePass();
     auto root_object = pass->bindPipeline(pipeline);
     auto cursor = rhi::ShaderCursor(root_object);
-    const GpuSpan source_span{source->getDeviceAddress(), count};
-    const GpuSpan result_span{result->getDeviceAddress(), static_cast<u64>(group_count)};
-    SLANG_RETURN_ON_FAIL(cursor["source"].setData(source_span));
-    SLANG_RETURN_ON_FAIL(cursor["result"].setData(result_span));
+    SLANG_RETURN_ON_FAIL(
+        cursor["source"].setBinding(rhi::Binding(source, rhi::BufferRange{0, count * element_byte_size})));
+    SLANG_RETURN_ON_FAIL(
+        cursor["result"].setBinding(rhi::Binding(result, rhi::BufferRange{0, group_count * element_byte_size})));
     pass->dispatchCompute(group_count, 1, 1);
     pass->end();
     return SLANG_OK;
@@ -317,6 +313,7 @@ SlangResult encode_texture_pass(
         [&context]() { return create_linked_texture_pipeline<T>(context); });
     if (!pipeline) return SLANG_FAIL;
 
+    using ReduceInfo = ReduceTypeInfo<T>;
     const auto group_count = static_cast<u32>(next_reduce_count(count));
     const auto &desc = source->getDesc();
     const u32x2 source_size{desc.size.width, desc.size.height};
@@ -324,10 +321,10 @@ SlangResult encode_texture_pass(
     auto *pass = encoder->beginComputePass();
     auto root_object = pass->bindPipeline(pipeline.get());
     auto cursor = rhi::ShaderCursor(root_object);
-    const GpuSpan result_span{result->getDeviceAddress(), static_cast<u64>(group_count)};
     SLANG_RETURN_ON_FAIL(cursor["sourceSize"].setData(source_size));
     SLANG_RETURN_ON_FAIL(cursor["source"]["texture"].setBinding(source));
-    SLANG_RETURN_ON_FAIL(cursor["result"].setData(result_span));
+    SLANG_RETURN_ON_FAIL(cursor["result"].setBinding(
+        rhi::Binding(result, rhi::BufferRange{0, static_cast<u64>(group_count) * ReduceInfo::k_byte_size})));
     pass->dispatchCompute(group_count, 1, 1);
     pass->end();
     return SLANG_OK;
@@ -356,15 +353,13 @@ SlangResult encode_reduce_sum(
         auto session = create_linking_session(device);
         if (!session) return Slang::ComPtr<rhi::IComputePipeline>{};
 
-        auto span = load_span_module(session.get());
-
         auto reduce = load_embedded_module(session.get(), EmbededModuleDesc{
                                                               .name = "reduce",
                                                               .start = _binary_reduce_slang_module_start,
                                                               .end = _binary_reduce_slang_module_end,
                                                           });
 
-        if (!span || !reduce) return Slang::ComPtr<rhi::IComputePipeline>{};
+        if (!reduce) return Slang::ComPtr<rhi::IComputePipeline>{};
         return create_linked_pipeline(
             context,
             session.get(),
@@ -378,10 +373,7 @@ SlangResult encode_reduce_sum(
     constexpr u32 elem_size = Info::k_byte_size;
     const auto initial_count = static_cast<u64>(count);
 
-    bool first = true;
     for (u64 l = initial_count; l > 1; l = next_reduce_count(l)) {
-        if (!first) encoder->globalBarrier();
-        first = false;
         auto *src = (l == initial_count) ? source : result;
         SLANG_RETURN_ON_FAIL(encode_buffer_pass(encoder, pipeline.get(), src, l, result, elem_size));
     }
@@ -396,7 +388,8 @@ T reduce_sum(Context &context, rhi::IBuffer *source, usize count) {
     auto result = create_buffer(
         context,
         result_size,
-        rhi::BufferUsage::UnorderedAccess | rhi::BufferUsage::CopySource | rhi::BufferUsage::CopyDestination);
+        rhi::BufferUsage::ShaderResource | rhi::BufferUsage::UnorderedAccess | rhi::BufferUsage::CopySource |
+            rhi::BufferUsage::CopyDestination);
 
     auto queue = context.queue();
     auto encoder = queue->createCommandEncoder();
@@ -429,7 +422,6 @@ SlangResult encode_reduce_texture_sum(
     const auto reduced_count = next_reduce_count(count);
     if (reduced_count <= 1) return SLANG_OK;
 
-    encoder->globalBarrier();
     return encode_reduce_sum<T>(context, encoder, result, reduced_count, result);
 }
 
@@ -443,7 +435,8 @@ T reduce_texture_sum(Context &context, rhi::ITexture *source) {
     auto result = create_buffer(
         context,
         result_size,
-        rhi::BufferUsage::UnorderedAccess | rhi::BufferUsage::CopySource | rhi::BufferUsage::CopyDestination);
+        rhi::BufferUsage::ShaderResource | rhi::BufferUsage::UnorderedAccess | rhi::BufferUsage::CopySource |
+            rhi::BufferUsage::CopyDestination);
 
     auto queue = context.queue();
     auto encoder = queue->createCommandEncoder();
