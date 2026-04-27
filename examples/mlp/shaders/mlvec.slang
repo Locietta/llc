@@ -41,14 +41,12 @@ public struct MLVec<int N> : IDifferentiable {
         return toArray(this);
     }
 
+    [Differentiable]
     public override static Differential dadd(Differential d0, Differential d1) {
         return { d0.data + d1.data };
     }
 
-    public override static Differential dmul<U : __BuiltinRealType>(U s, Differential d) {
-        return { d.data * __realCast<half>(s) };
-    }
-
+    [Differentiable]
     public override static Differential dzero() {
         return {};
     }
