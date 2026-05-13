@@ -1,0 +1,8 @@
+{
+  "iteration_count": 10000,
+  "report_interval": 100,
+  "random_seed": 1072,
+  "learning_rate": 0.001,
+  "output_image": "brdf_2d_minimization.png",
+  "brdf_image": "brdf_2d_params.png"
+}
