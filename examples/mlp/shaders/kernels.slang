@@ -5,6 +5,11 @@ import mlp;
 import network;
 import adam;
 
+[Differentiable]
+half computeLoss(MyNetwork *network, no_diff half x, no_diff half y) {
+    return loss(network, x, y);
+}
+
 [numthreads(256, 1, 1)]
 [require(spvGroupNonUniformBallot, spvGroupNonUniformArithmetic, spvCooperativeVectorNV)]
 void learnGradient(
@@ -17,8 +22,8 @@ void learnGradient(
         return;
 
     var input = (half2) inputs[tid];
-    bwd_diff(loss)(network, input.x, input.y, 1.0h);
-    let thisLoss = (float) loss(network, input.x, input.y);
+    bwd_diff(computeLoss)(network, input.x, input.y, 1.0h);
+    let thisLoss = (float) computeLoss(network, input.x, input.y);
     let maxLoss = WaveActiveMax(thisLoss);
     if (WaveIsFirstLane()) {
         lossBuffer.max(bit_cast<uint>(maxLoss));
