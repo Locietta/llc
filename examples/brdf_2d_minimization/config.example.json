@@ -2,6 +2,10 @@
   "iteration_count": 10000,
   "report_interval": 100,
   "random_seed": 1072,
+  "full_width": 256,
+  "full_height": 256,
+  "crop_x": 64,
+  "crop_y": 64,
   "learning_rate": 0.001,
   "output_image": "brdf_2d_minimization.png",
   "brdf_image": "brdf_2d_params.png"

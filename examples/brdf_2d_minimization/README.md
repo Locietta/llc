@@ -8,7 +8,7 @@ Run:
 xmake run brdf_2d_minimization examples/brdf_2d_minimization/config.example.json
 ```
 
-The example loads `resources/diffuse.jpg`, `resources/normal.jpg`, and `resources/roughness.jpg`, crops the same 128x128 region as the Python script, initializes a 64x64 BRDF by 2x2 averaging, and optimizes it with GPU-computed Slang autodiff gradients plus Adam.
+The example loads `resources/diffuse.jpg`, `resources/normal.jpg`, and `resources/roughness.jpg`, crops a JSON-configured full-resolution region, initializes a half-resolution BRDF by 2x2 averaging, and optimizes it with GPU-computed Slang autodiff gradients plus Adam. `full_width` and `full_height` must be even; the bundled config uses a 256x256 crop at `(64, 64)` and optimizes a 128x128 BRDF.
 
 Outputs:
 

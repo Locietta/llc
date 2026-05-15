@@ -18,6 +18,10 @@ struct App final {
         u32 iteration_count = 10000;
         u32 report_interval = 100;
         u32 random_seed = 1072;
+        u32 full_width = 256;
+        u32 full_height = 256;
+        u32 crop_x = 64;
+        u32 crop_y = 64;
         f32 learning_rate = 0.001f;
         std::string output_image = "brdf_2d_minimization.png";
         std::string brdf_image = "brdf_2d_params.png";

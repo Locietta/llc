@@ -3,6 +3,9 @@ module brdf_2d;
 static const float kPi = 3.14159265358979323846f;
 static const uint kChannelCount = 7;
 static const uint kInvalidIndex = 0xffffffffu;
+static const uint kGradientWindowSize = 64;
+
+groupshared float gGradientWaveSums[kGradientWindowSize];
 
 struct InputParams {
     float L_x;
@@ -228,9 +231,11 @@ float pixelLossForParam(
     return dot(diff, diff);
 }
 
-[numthreads(256, 1, 1)]
+[numthreads(kGradientWindowSize, 1, 1)]
+[require(spvGroupNonUniformArithmetic)]
 void computeGradient(
-    uint tid: SV_DispatchThreadID,
+    uint3 groupId: SV_GroupID,
+    uint3 groupThreadId: SV_GroupThreadID,
     uniform float *fullBrdf,
     uniform float *halfBrdf,
     uniform float *gradients,
@@ -240,6 +245,8 @@ void computeGradient(
     uniform uint halfWidth,
     uniform uint halfHeight,
     uniform InputParams inputParams) {
+    uint tid = groupId.x;
+    uint localTid = groupThreadId.x;
     if (tid >= parameterCount)
         return;
 
@@ -249,33 +256,47 @@ void computeGradient(
     float param = halfBrdf[tid];
     Params params = packInputParams(inputParams);
 
-    float totalGrad = 0.0f;
     int minX = max(0, int(hx) * 2 - 3);
     int maxX = min(int(fullWidth) - 1, int(hx) * 2 + 4);
     int minY = max(0, int(hy) * 2 - 3);
     int maxY = min(int(fullHeight) - 1, int(hy) * 2 + 4);
 
-    for (int y = minY; y <= maxY; y++) {
-        for (int x = minX; x <= maxX; x++) {
-            float2 uv = (float2(x, y) + 0.5f) / float2(fullWidth, fullHeight);
-            DifferentialPair<float> paramPair = diffPair(param);
-            bwd_diff(pixelLossForParam)(
-                fullBrdf,
-                halfBrdf,
-                tid,
-                paramPair,
-                uv,
-                params,
-                fullWidth,
-                fullHeight,
-                halfWidth,
-                halfHeight,
-                1.0f);
-            totalGrad += paramPair.d;
-        }
+    int windowX = minX + int(localTid & 7);
+    int windowY = minY + int(localTid >> 3);
+    float localGrad = 0.0f;
+    if (windowX <= maxX && windowY <= maxY) {
+        float2 uv = (float2(windowX, windowY) + 0.5f) / float2(fullWidth, fullHeight);
+        DifferentialPair<float> paramPair = diffPair(param);
+        bwd_diff(pixelLossForParam)(
+            fullBrdf,
+            halfBrdf,
+            tid,
+            paramPair,
+            uv,
+            params,
+            fullWidth,
+            fullHeight,
+            halfWidth,
+            halfHeight,
+            1.0f);
+        localGrad = paramPair.d;
     }
 
-    gradients[tid] = totalGrad / float(fullWidth * fullHeight);
+    localGrad = WaveActiveSum(localGrad);
+
+    uint waveSize = WaveGetLaneCount();
+    uint waveId = localTid / waveSize;
+    if (WaveIsFirstLane())
+        gGradientWaveSums[waveId] = localGrad;
+
+    GroupMemoryBarrierWithGroupSync();
+
+    uint waveCount = (kGradientWindowSize + waveSize - 1) / waveSize;
+    float groupGrad = localTid < waveCount ? gGradientWaveSums[localTid] : 0.0f;
+    groupGrad = WaveActiveSum(groupGrad);
+
+    if (localTid == 0)
+        gradients[tid] = groupGrad / float(fullWidth * fullHeight);
 }
 
 [numthreads(256, 1, 1)]
