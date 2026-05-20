@@ -5,9 +5,21 @@ import mlp;
 import network;
 import adam;
 
+public half4 groundtruth(half x, half y) {
+    return {
+        (x + y) / (1 + y * y),
+        2 * x + y,
+        0.5 * x * x + 1.2 * y,
+        x + 0.5 * y * y,
+    };
+}
+
 [Differentiable]
-half computeLoss(MyNetwork *network, no_diff half x, no_diff half y) {
-    return loss(network, x, y);
+public half loss(MyNetwork *network, no_diff half x, no_diff half y) {
+    let networkResult = network.eval(x, y);
+    let gt = no_diff groundtruth(x, y);
+    let diff = networkResult - gt;
+    return dot(diff, diff);
 }
 
 [numthreads(256, 1, 1)]
@@ -22,8 +34,8 @@ void learnGradient(
         return;
 
     var input = (half2) inputs[tid];
-    bwd_diff(computeLoss)(network, input.x, input.y, 1.0h);
-    let thisLoss = (float) computeLoss(network, input.x, input.y);
+    bwd_diff(loss)(network, input.x, input.y, 1.0h);
+    let thisLoss = (float) loss(network, input.x, input.y);
     let maxLoss = WaveActiveMax(thisLoss);
     if (WaveIsFirstLane()) {
         lossBuffer.max(bit_cast<uint>(maxLoss));
