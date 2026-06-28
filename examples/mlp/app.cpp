@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <fmt/core.h>
+#include <fmt/format.h>
 #include <slang-rhi/shader-cursor.h>
 
 #include <daw/json/daw_json_link.h>

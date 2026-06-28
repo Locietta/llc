@@ -20,6 +20,7 @@
 
 #include <daw/json/daw_json_link.h>
 #include <fmt/core.h>
+#include <fmt/format.h>
 #include <slang-rhi/shader-cursor.h>
 
 #include <llc/buffer.h>
