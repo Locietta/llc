@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -27,7 +28,7 @@ struct PipelineCache final {
 /// Thread-safe pipeline lookup with double-checked locking.
 /// `create_fn()` is called outside the lock if no cache hit.
 template <typename CreateFn>
-Slang::ComPtr<rhi::IComputePipeline> get_cached_pipeline(PipelineCache &cache, std::string key, CreateFn create_fn) {
+Slang::ComPtr<rhi::IComputePipeline> get_cached_pipeline(PipelineCache &cache, std::string_view key, CreateFn create_fn) {
     {
         std::scoped_lock lock(cache.mutex);
         for (const auto &cached : cache.entries) {
@@ -46,7 +47,7 @@ Slang::ComPtr<rhi::IComputePipeline> get_cached_pipeline(PipelineCache &cache, s
             return cached.pipeline;
         }
     }
-    cache.entries.push_back({std::move(key), pipeline});
+    cache.entries.push_back({std::string(key), pipeline});
     return pipeline;
 }
 
