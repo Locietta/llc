@@ -7,11 +7,12 @@
 #include <string>
 #include <string_view>
 #include <optional>
-#include <vector>
 #include <ranges>
 
 #include <llc/context.h>
 #include <llc/types.hpp>
+
+#include <llc/utils/small_vector.h>
 
 namespace llc {
 
@@ -65,9 +66,10 @@ private:
     void record_scope_label(std::string_view label);
 
     Slang::ComPtr<rhi::IQueryPool> query_pool_;
-    std::vector<u64> results_;
-    std::vector<f64> pair_durations_;
-    std::vector<std::string> pair_labels_;
+
+    SmallVector<u64, 16> results_;
+    SmallVector<f64, 8> pair_durations_;
+    SmallVector<std::string, 8> pair_labels_;
     u64 timestamp_frequency_ = 0;
     u32 capacity_ = 0;
     u32 next_query_index_ = 0;

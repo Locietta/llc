@@ -15,7 +15,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "llc/utils/config.h"
+#include <llc/utils/config.h>
 
 namespace llc::mem {
 
