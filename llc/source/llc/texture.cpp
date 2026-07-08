@@ -13,6 +13,8 @@
 
 #include <llc/utils/embedded_module.h>
 #include <llc/utils/pipeline_cache.h>
+#include <llc/utils/small_vector.h>
+#include <llc/utils/small_string.h>
 
 extern "C" const unsigned char _binary_generate_mips_slang_module_start[]; // NOLINT
 extern "C" const unsigned char _binary_generate_mips_slang_module_end[];   // NOLINT
@@ -145,16 +147,17 @@ bool generate_texture_mips(Context &context, rhi::ITexture *texture) {
     if (desc.mipCount <= 1) return true;
 
     /// generate pipeline key for cache
-    const std::string pipeline_key = "generate_mips_" + [&desc] {
-        switch (desc.format) {
-            case rhi::Format::RGBA8Unorm:
-                return std::string("rgba8");
-            case rhi::Format::RGBA32Float:
-                return std::string("rgba32f");
-            default:
-                return std::string{};
-        }
-    }();
+    SmallString<32> pipeline_key{"generate_mips_"};
+    switch (desc.format) {
+        case rhi::Format::RGBA8Unorm:
+            pipeline_key.append("rgba8");
+            break;
+        case rhi::Format::RGBA32Float:
+            pipeline_key.append("rgba32f");
+            break;
+        default:
+            return false;
+    }
 
     auto pipeline = get_cached_pipeline(pipeline_cache(context), pipeline_key,
                                         [&context, &desc]() {
@@ -275,7 +278,7 @@ Slang::ComPtr<rhi::ITexture> create_texture_2d(
     if (mip_images.empty()) return nullptr;
 
     const auto target_format = format == rhi::Format::Undefined ? mip_images[0].format : format;
-    std::vector<Image> converted_images;
+    SmallVector<Image, 6> converted_images;
     converted_images.reserve(mip_images.size());
     for (const auto &image : mip_images) {
         auto converted = convert_image(image, target_format);
