@@ -9,7 +9,7 @@ if is_os("windows") then
     -- set_toolchains("clang-cl") -- slang-rhi does not support clang-cl yet
     add_defines("_CRT_SECURE_NO_WARNINGS")
     add_defines("WIN32_LEAN_AND_MEAN", "UNICODE", "_UNICODE", "NOMINMAX", "_WINDOWS")
-else if is_os("linux") then
+elseif is_os("linux") then
     -- gcc has an ICE on std::source_location::current() when used in coroutines, so we use clang instead
     set_toolchains("clang")
 end
