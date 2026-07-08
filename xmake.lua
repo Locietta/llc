@@ -26,6 +26,7 @@ add_rules("slang", {
 add_requires("fmt", { system = false})
 add_requires("glm", { system = false })
 add_requires("mdspan", { system = false })
+add_requires("libuv", { configs = {shared = false} })
 add_requires("slang", "slang-rhi")
 
 includes("*/xmake.lua")

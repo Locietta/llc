@@ -1,0 +1,5 @@
+target("async_runtime_checks")
+    set_kind("binary")
+        add_files("main.cpp")
+            add_packages("fmt", "slang-rhi")
+                add_deps("llc")
