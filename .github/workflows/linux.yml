@@ -19,10 +19,13 @@ jobs:
         with:
           xmake-version: latest
 
-      - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: "22"
+      - name: Set Clang 22 as default
+        run: |
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-22 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-22 100
+
+          sudo update-alternatives --set clang /usr/bin/clang-22
+          sudo update-alternatives --set clang++ /usr/bin/clang++-22
 
       - name: Install Linux dependencies
         shell: bash
