@@ -25,44 +25,6 @@ using namespace llc::types;
 
 constexpr usize k_thread_group_size = 256;
 
-/// Create a child Slang session matching the device's backend, with warning E41012
-/// ("profile implicitly upgraded") suppressed. This is expected when linking
-/// target-agnostic precompiled IR modules into a profiled session.
-Slang::ComPtr<slang::ISession> create_linking_session(rhi::IDevice *device) {
-    auto session = device->getSlangSession();
-    auto *global = session->getGlobalSession();
-
-    SlangCompileTarget target = SLANG_SPIRV;
-    const char *profile = "spirv_1_6";
-    if (device->getDeviceType() == rhi::DeviceType::D3D12) {
-        target = SLANG_DXIL;
-        profile = "sm_6_6";
-    }
-
-    slang::CompilerOptionEntry disable_41012{};
-    disable_41012.name = slang::CompilerOptionName::DisableWarning;
-    disable_41012.value.kind = slang::CompilerOptionValueKind::String;
-    disable_41012.value.stringValue0 = "41012";
-
-    slang::TargetDesc target_desc{};
-    target_desc.format = target;
-    target_desc.profile = global->findProfile(profile);
-    target_desc.forceGLSLScalarBufferLayout = true;
-
-    slang::SessionDesc desc{};
-    desc.targets = &target_desc;
-    desc.targetCount = 1;
-    desc.compilerOptionEntries = &disable_41012;
-    desc.compilerOptionEntryCount = 1;
-    desc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_ROW_MAJOR;
-
-    Slang::ComPtr<slang::ISession> child;
-    if (SLANG_FAILED(global->createSession(desc, child.writeRef()))) {
-        return nullptr;
-    }
-    return child;
-}
-
 template <typename T>
 struct ReduceTypeInfo;
 
@@ -141,7 +103,6 @@ LLC_DEFINE_REDUCE_TEXTURE_TYPE_INFO(f32x4, rhi::Format::RGBA32Float, "float4");
 
 Slang::ComPtr<rhi::IComputePipeline> create_linked_pipeline(
     Context &context,
-    slang::ISession *session,
     slang::IModule *main_module,
     const std::string &config_name,
     const std::string &config_source,
@@ -150,6 +111,7 @@ Slang::ComPtr<rhi::IComputePipeline> create_linked_pipeline(
     usize specialization_arg_count = 0) {
 
     auto *device = context.device();
+    auto *session = context.slang_session();
     if (!device || !session || !main_module) return nullptr;
 
     Slang::ComPtr<slang::IBlob> diagnostics;
@@ -214,15 +176,14 @@ Slang::ComPtr<rhi::IComputePipeline> create_linked_texture_pipeline(Context &con
     using ReduceInfo = ReduceTypeInfo<T>;
     using TextureInfo = ReduceTextureTypeInfo<T>;
     auto *device = context.device();
-
-    auto session = create_linking_session(device);
+    auto *session = context.slang_session();
     if (!session) return nullptr;
 
-    auto reduce = load_embedded_module(session.get(), EmbededModuleDesc{
-                                                          .name = "reduce",
-                                                          .start = _binary_reduce_slang_module_start,
-                                                          .end = _binary_reduce_slang_module_end,
-                                                      });
+    auto reduce = load_embedded_module(context, EmbededModuleDesc{
+                                                    .name = "reduce",
+                                                    .start = _binary_reduce_slang_module_start,
+                                                    .end = _binary_reduce_slang_module_end,
+                                                });
     if (!reduce) return nullptr;
 
     Slang::ComPtr<slang::IBlob> diagnostics;
@@ -349,20 +310,15 @@ SlangResult encode_reduce_sum(
 
     using Info = ReduceTypeInfo<T>;
     auto pipeline = get_cached_pipeline(pipeline_cache(context), Info::k_slang_type, [&context]() {
-        auto *device = context.device();
-        auto session = create_linking_session(device);
-        if (!session) return Slang::ComPtr<rhi::IComputePipeline>{};
-
-        auto reduce = load_embedded_module(session.get(), EmbededModuleDesc{
-                                                              .name = "reduce",
-                                                              .start = _binary_reduce_slang_module_start,
-                                                              .end = _binary_reduce_slang_module_end,
-                                                          });
+        auto reduce = load_embedded_module(context, EmbededModuleDesc{
+                                                        .name = "reduce",
+                                                        .start = _binary_reduce_slang_module_start,
+                                                        .end = _binary_reduce_slang_module_end,
+                                                    });
 
         if (!reduce) return Slang::ComPtr<rhi::IComputePipeline>{};
         return create_linked_pipeline(
             context,
-            session.get(),
             reduce.get(),
             Info::k_config_name,
             Info::k_config_source,

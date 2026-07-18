@@ -8,6 +8,7 @@
 
 namespace llc::pp {
 
+/// Reduction kernels require a device created with rhi::Feature::WaveOps.
 template <typename T>
 usize reduce_sum_scratch_size(usize count);
 

@@ -35,6 +35,7 @@ ReduceElement reduce_group_sum(uint localIndex, uint laneIndex, uint waveIndex, 
 
 [shader("compute")]
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
+[require(subgroup_basic, subgroup_arithmetic)]
 void reduce(
     uint3 groupThreadID: SV_GroupThreadID,
     uint3 groupID: SV_GroupID,
@@ -56,6 +57,7 @@ void reduce(
 
 [shader("compute")]
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
+[require(subgroup_basic, subgroup_arithmetic)]
 void reduce_texture(
     uint3 groupThreadID: SV_GroupThreadID,
     uint3 groupID: SV_GroupID,

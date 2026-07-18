@@ -1,5 +1,6 @@
 #include "app.h"
 
+#include <iterator>
 #include <vector>
 
 #include <fmt/core.h>
@@ -49,6 +50,9 @@ i32 App::run(i32 argc, const char *argv[]) {
         fmt::println("Unsupported backend: {}", backend_name);
         return -1;
     }
+    const rhi::Feature required_features[] = {rhi::Feature::WaveOps};
+    device_desc.requiredFeatures = required_features;
+    device_desc.requiredFeatureCount = std::size(required_features);
 
     auto context = Context::create(ContextDesc{.device = device_desc});
     if (!context) {

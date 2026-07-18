@@ -1,5 +1,6 @@
 #include "app.h"
 
+#include <iterator>
 #include <vector>
 
 #include <cxxopts.hpp>
@@ -83,6 +84,9 @@ i32 App::run(i32 argc, const char *argv[]) {
     rhi::DeviceDesc device_desc;
     device_desc.slang.targetProfile = "spirv_1_6";
     device_desc.deviceType = rhi::DeviceType::Vulkan;
+    const rhi::Feature required_features[] = {rhi::Feature::WaveOps};
+    device_desc.requiredFeatures = required_features;
+    device_desc.requiredFeatureCount = std::size(required_features);
 
     auto context = Context::create(ContextDesc{.device = device_desc});
     if (!context) {
