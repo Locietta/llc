@@ -53,6 +53,19 @@ public:
 template <typename List, template <typename> typename Predicate>
 using type_list_filter_t = typename TypeListFilter<List, Predicate>::type;
 
+// Applies Function directly to each element (works with class and alias
+// templates alike), unlike Filter's Predicate which is read through ::value.
+template <typename List, template <typename> typename Function>
+struct TypeListTransform;
+
+template <typename... Ts, template <typename> typename Function>
+struct TypeListTransform<TypeList<Ts...>, Function> {
+    using type = TypeList<Function<Ts>...>;
+};
+
+template <typename List, template <typename> typename Function>
+using type_list_transform_t = typename TypeListTransform<List, Function>::type;
+
 template <typename List>
 struct TypeListUnique;
 
@@ -101,6 +114,21 @@ struct TypeListElement<0, TypeList<First, Rest...>> {
 
 template <std::size_t I, typename List>
 using type_list_element_t = typename TypeListElement<I, List>::type;
+
+// Index of the first occurrence of T; a list that does not contain T is a
+// compile error (use TypeListContains to test membership first).
+template <typename List, typename T>
+struct TypeListIndexOf;
+
+template <typename T, typename... Rest>
+struct TypeListIndexOf<TypeList<T, Rest...>, T> : std::integral_constant<std::size_t, 0> {};
+
+template <typename First, typename... Rest, typename T>
+struct TypeListIndexOf<TypeList<First, Rest...>, T>
+    : std::integral_constant<std::size_t, 1 + TypeListIndexOf<TypeList<Rest...>, T>::value> {};
+
+template <typename List, typename T>
+constexpr inline std::size_t k_type_list_index_of_v = TypeListIndexOf<List, T>::value;
 
 template <typename A, typename B>
 struct TypeListCat;
