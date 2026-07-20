@@ -8,6 +8,7 @@
 
 #include <llc/context.h>
 #include <llc/types.hpp>
+#include <llc/utils/config.h>
 
 namespace llc {
 
@@ -74,8 +75,7 @@ ReadbackView<T> read_buffer(
     Slang::ComPtr<ISlangBlob> blob;
     const rhi::Size byte_size = size * sizeof(T);
     if (SLANG_FAILED(context.device()->readBuffer(buffer, offset, byte_size, blob.writeRef()))) {
-        assert(false && "Failed to read back buffer data from device.");
-        return {};
+        LLC_PANIC("Failed to read back buffer data from device.");
     }
     return ReadbackView<T>{blob};
 }

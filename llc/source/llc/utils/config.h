@@ -82,3 +82,10 @@
 #define LLC_CATCH_ALL() else
 #define LLC_RETHROW() std::abort()
 #endif
+
+// uncatchable failure, e.g. for unrecoverable errors in low-level code
+#define LLC_PANIC(message)                          \
+    do {                                            \
+        std::fputs("PANIC: " message "\n", stderr); \
+        std::abort();                               \
+    } while (false)

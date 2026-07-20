@@ -11,6 +11,7 @@
 #include <llc/blob.h>
 #include <llc/types.hpp>
 
+#include <llc/utils/config.h>
 #include <llc/utils/embedded_module.h>
 #include <llc/utils/pipeline_cache.h>
 #include <llc/utils/small_vector.h>
@@ -335,8 +336,7 @@ Image read_texture_to_image(
     Slang::ComPtr<ISlangBlob> blob;
     rhi::SubresourceLayout layout{};
     if (SLANG_FAILED(context.device()->readTexture(texture, array_layer, mip_level, blob.writeRef(), &layout))) {
-        assert(false && "Failed to read back texture data from device.");
-        return {};
+        LLC_PANIC("Failed to read back texture data from device.");
     }
 
     const auto &desc = texture->getDesc();
@@ -346,8 +346,7 @@ Image read_texture_to_image(
     const u32 height = mip_height > 0 ? mip_height : 1u;
     const usize pixel_stride = bytes_per_pixel(desc.format);
     if (pixel_stride == 0) {
-        assert(false && "Unsupported texture format for Image readback.");
-        return {};
+        LLC_PANIC("Unsupported texture format for Image readback.");
     }
 
     Image image(width, height, desc.format, static_cast<usize>(width) * pixel_stride);
