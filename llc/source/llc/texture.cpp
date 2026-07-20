@@ -17,8 +17,8 @@
 #include <llc/utils/small_vector.h>
 #include <llc/utils/small_string.h>
 
-extern "C" const unsigned char _binary_generate_mips_slang_module_start[]; // NOLINT
-extern "C" const unsigned char _binary_generate_mips_slang_module_end[];   // NOLINT
+extern "C" const llc::u8 _binary_generate_mips_slang_module_start[]; // NOLINT
+extern "C" const llc::u8 _binary_generate_mips_slang_module_end[];   // NOLINT
 
 namespace llc {
 
@@ -43,9 +43,9 @@ bool supports_auto_mip_generation(rhi::Format format) noexcept {
 std::string mip_format_specialization_expr(rhi::Format format) {
     switch (format) {
         case rhi::Format::RGBA8Unorm:
-            return std::to_string(static_cast<int>(SLANG_IMAGE_FORMAT_rgba8));
+            return std::to_string(static_cast<i32>(SLANG_IMAGE_FORMAT_rgba8));
         case rhi::Format::RGBA32Float:
-            return std::to_string(static_cast<int>(SLANG_IMAGE_FORMAT_rgba32f));
+            return std::to_string(static_cast<i32>(SLANG_IMAGE_FORMAT_rgba32f));
         default:
             return {};
     }

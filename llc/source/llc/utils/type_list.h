@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <type_traits>
 #include <variant>
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 
@@ -101,10 +102,10 @@ struct TypeListUnique<TypeList<Ts...>> {
 template <typename List>
 using type_list_unique_t = typename TypeListUnique<List>::type;
 
-template <std::size_t I, typename List>
+template <usize I, typename List>
 struct TypeListElement;
 
-template <std::size_t I, typename First, typename... Rest>
+template <usize I, typename First, typename... Rest>
 struct TypeListElement<I, TypeList<First, Rest...>> : TypeListElement<I - 1, TypeList<Rest...>> {};
 
 template <typename First, typename... Rest>
@@ -112,7 +113,7 @@ struct TypeListElement<0, TypeList<First, Rest...>> {
     using type = First;
 };
 
-template <std::size_t I, typename List>
+template <usize I, typename List>
 using type_list_element_t = typename TypeListElement<I, List>::type;
 
 // Index of the first occurrence of T; a list that does not contain T is a
@@ -121,14 +122,14 @@ template <typename List, typename T>
 struct TypeListIndexOf;
 
 template <typename T, typename... Rest>
-struct TypeListIndexOf<TypeList<T, Rest...>, T> : std::integral_constant<std::size_t, 0> {};
+struct TypeListIndexOf<TypeList<T, Rest...>, T> : std::integral_constant<usize, 0> {};
 
 template <typename First, typename... Rest, typename T>
 struct TypeListIndexOf<TypeList<First, Rest...>, T>
-    : std::integral_constant<std::size_t, 1 + TypeListIndexOf<TypeList<Rest...>, T>::value> {};
+    : std::integral_constant<usize, 1 + TypeListIndexOf<TypeList<Rest...>, T>::value> {};
 
 template <typename List, typename T>
-constexpr inline std::size_t k_type_list_index_of_v = TypeListIndexOf<List, T>::value;
+constexpr inline usize k_type_list_index_of_v = TypeListIndexOf<List, T>::value;
 
 template <typename A, typename B>
 struct TypeListCat;
@@ -164,10 +165,10 @@ template <typename List>
 struct TypeListSize;
 
 template <typename... Ts>
-struct TypeListSize<TypeList<Ts...>> : std::integral_constant<std::size_t, sizeof...(Ts)> {};
+struct TypeListSize<TypeList<Ts...>> : std::integral_constant<usize, sizeof...(Ts)> {};
 
 template <typename List>
-constexpr inline std::size_t k_type_list_size_v = TypeListSize<List>::value;
+constexpr inline usize k_type_list_size_v = TypeListSize<List>::value;
 
 template <typename List>
 struct TypeListToUnion;

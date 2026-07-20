@@ -3,19 +3,20 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 
-size_t RingBuffer::read(char *dest, size_t len) {
-    const size_t to_read = std::min(len, size);
+usize RingBuffer::read(char *dest, usize len) {
+    const usize to_read = std::min(len, size);
     if (to_read == 0) {
         return 0;
     }
 
-    const size_t first_chunk = std::min(to_read, capacity - head);
+    const usize first_chunk = std::min(to_read, capacity - head);
     std::memcpy(dest, storage.get() + head, first_chunk);
 
-    const size_t remaining = to_read - first_chunk;
+    const usize remaining = to_read - first_chunk;
     if (remaining > 0) {
         std::memcpy(dest + first_chunk, storage.get(), remaining);
     }
@@ -25,7 +26,7 @@ size_t RingBuffer::read(char *dest, size_t len) {
     return to_read;
 }
 
-std::pair<const char *, size_t> RingBuffer::get_read_ptr() const {
+std::pair<const char *, usize> RingBuffer::get_read_ptr() const {
     if (size == 0) {
         return {nullptr, 0};
     }
@@ -34,7 +35,7 @@ std::pair<const char *, size_t> RingBuffer::get_read_ptr() const {
     // would yield contiguous = 0, causing read_chunk() to return an empty
     // span and the caller to spin forever. Use strict `>` so the full case
     // falls through to the else branch (capacity - head), which is correct.
-    size_t contiguous = 0;
+    usize contiguous = 0;
     if (tail > head) {
         contiguous = tail - head;
     } else {
@@ -45,7 +46,7 @@ std::pair<const char *, size_t> RingBuffer::get_read_ptr() const {
     return {storage.get() + head, contiguous};
 }
 
-void RingBuffer::advance_read(size_t len) {
+void RingBuffer::advance_read(usize len) {
     if (len > size) {
         len = size;
     }
@@ -54,9 +55,9 @@ void RingBuffer::advance_read(size_t len) {
     size -= len;
 }
 
-std::pair<char *, size_t> RingBuffer::get_write_ptr() {
-    const size_t writable = writable_bytes();
-    size_t contiguous = 0;
+std::pair<char *, usize> RingBuffer::get_write_ptr() {
+    const usize writable = writable_bytes();
+    usize contiguous = 0;
     if (writable == 0) {
         contiguous = 0;
     } else if (tail >= head) {
@@ -68,8 +69,8 @@ std::pair<char *, size_t> RingBuffer::get_write_ptr() {
     return {storage.get() + tail, contiguous};
 }
 
-void RingBuffer::advance_write(size_t len) {
-    const size_t writable = writable_bytes();
+void RingBuffer::advance_write(usize len) {
+    const usize writable = writable_bytes();
     if (len > writable) {
         len = writable;
     }

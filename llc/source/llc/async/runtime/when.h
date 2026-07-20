@@ -11,11 +11,12 @@
 #include <utility>
 #include <variant>
 
-#include "llc/utils/memory.h"
-#include "llc/utils/small_vector.h"
-#include "llc/async/runtime/node.h"
-#include "llc/async/runtime/traits.h"
-#include "llc/async/vocab/outcome.h"
+#include <llc/scalar_types.hpp>
+#include <llc/utils/memory.h>
+#include <llc/utils/small_vector.h>
+#include <llc/async/runtime/node.h>
+#include <llc/async/runtime/traits.h>
+#include <llc/async/vocab/outcome.h>
 
 namespace llc {
 
@@ -121,7 +122,7 @@ public:
 private:
     auto collect_success() -> success_type {
         if constexpr (All) {
-            return [this]<std::size_t... I>(std::index_sequence<I...>) {
+            return [this]<usize... I>(std::index_sequence<I...>) {
                 return success_type(
                     detail::take_success_result<k_capture_cancel>(std::get<I>(tasks))...);
             }(std::index_sequence_for<Tasks...>{});
@@ -151,7 +152,7 @@ public:
     using success_type =
         std::conditional_t<All,
                            SmallVector<detail::task_success_t<Task, k_capture_cancel>>,
-                           std::pair<std::size_t, detail::task_success_t<Task, k_capture_cancel>>>;
+                           std::pair<usize, detail::task_success_t<Task, k_capture_cancel>>>;
 
     using result_type = detail::aggregate_result_t<success_type, error_type, cancel_type>;
 
@@ -280,7 +281,7 @@ public:
 /// Void tasks produce `std::nullopt_t` in the variant.
 ///
 /// Range overload: accepts a range of homogeneous tasks and returns
-/// `std::pair<std::size_t, T>` where the first element is the index of the winner.
+/// `std::pair<usize, T>` where the first element is the index of the winner.
 ///
 /// Once a winner is determined, all remaining tasks are cancelled.
 /// If the first-to-complete Task produces a structured Error, the combinator

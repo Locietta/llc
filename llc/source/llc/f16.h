@@ -1,25 +1,26 @@
 #pragma once
 
 #include <compare>
-#include <cstdint>
 #include <limits>
+
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 
 struct f16 { // NOLINT(readability-identifier-naming)
-    using storage_type = std::uint16_t;
+    using storage_type = u16;
 
     constexpr f16() noexcept = default;
     constexpr f16(const f16 &) noexcept = default;
     constexpr f16 &operator=(const f16 &) noexcept = default;
 
-    f16(float value) noexcept;
+    f16(f32 value) noexcept;
 
     static constexpr f16 from_bits(storage_type bits) noexcept { return f16(bits, Tag{}); }
 
     constexpr storage_type bits() const noexcept { return bits_; }
 
-    operator float() const noexcept;
+    operator f32() const noexcept;
 
     constexpr f16 operator+() const noexcept { return *this; }
     f16 operator-() const noexcept;
@@ -50,13 +51,13 @@ struct f16 { // NOLINT(readability-identifier-naming)
     }
 
     constexpr bool operator==(const f16 &rhs) const noexcept {
-        return static_cast<float>(*this) == static_cast<float>(rhs);
+        return static_cast<f32>(*this) == static_cast<f32>(rhs);
         // we can't use default operator== because it would compare the bits,
         // which is not correct for NaN and -0.0 vs 0.0
     }
 
     auto operator<=>(const f16 &rhs) const noexcept {
-        return static_cast<float>(*this) <=> static_cast<float>(rhs);
+        return static_cast<f32>(*this) <=> static_cast<f32>(rhs);
     }
 
 private:
@@ -89,14 +90,14 @@ public:
     static constexpr bool is_iec559 = true;
     static constexpr bool is_bounded = true;
     static constexpr bool is_modulo = false;
-    static constexpr int digits = 11;
-    static constexpr int digits10 = 3;
-    static constexpr int max_digits10 = 5;
-    static constexpr int radix = 2;
-    static constexpr int min_exponent = -13;
-    static constexpr int min_exponent10 = -4;
-    static constexpr int max_exponent = 16;
-    static constexpr int max_exponent10 = 4;
+    static constexpr llc::i32 digits = 11;
+    static constexpr llc::i32 digits10 = 3;
+    static constexpr llc::i32 max_digits10 = 5;
+    static constexpr llc::i32 radix = 2;
+    static constexpr llc::i32 min_exponent = -13;
+    static constexpr llc::i32 min_exponent10 = -4;
+    static constexpr llc::i32 max_exponent = 16;
+    static constexpr llc::i32 max_exponent10 = 4;
     static constexpr bool traps = false;
     static constexpr bool tinyness_before = false;
 

@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 
+#include <llc/scalar_types.hpp>
 #include <llc/utils/config.h>
 
 namespace llc {

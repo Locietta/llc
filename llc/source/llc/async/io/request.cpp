@@ -1,11 +1,12 @@
-#include "llc/async/io/request.h"
+#include "request.h"
 
 #include <cassert>
 
-#include "awaiter.h"
-#include "llc/async/io/loop.h"
-#include "llc/async/runtime/task.h"
-#include "llc/async/vocab/error.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/io/awaiter.h>
+#include <llc/async/io/loop.h>
+#include <llc/async/runtime/task.h>
+#include <llc/async/vocab/error.h>
 
 namespace llc {
 
@@ -64,7 +65,7 @@ Task<void, Error> queue(Function<void()> fn, Function<void()> on_cancel, EventLo
         holder->fn();
     };
 
-    auto after_cb = [](uv_work_t *req, int status) {
+    auto after_cb = [](uv_work_t *req, i32 status) {
         auto *holder = static_cast<WorkOp *>(req->data);
         assert(holder != nullptr && "after_cb requires operation in req->data");
 

@@ -7,6 +7,7 @@
 #include <system_error>
 #include <fmt/format.h>
 
+#include <llc/scalar_types.hpp>
 #include <llc/blob.h>
 #include <llc/utils/fs.h>
 #include <llc/utils/config.h>

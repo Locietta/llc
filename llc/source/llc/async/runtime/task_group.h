@@ -9,10 +9,11 @@
 #include <exception>
 #endif
 
-#include "llc/utils/config.h"
-#include "llc/async/runtime/node.h"
-#include "llc/async/runtime/traits.h"
-#include "llc/async/vocab/outcome.h"
+#include <llc/scalar_types.hpp>
+#include <llc/utils/config.h>
+#include <llc/async/runtime/node.h>
+#include <llc/async/runtime/traits.h>
+#include <llc/async/vocab/outcome.h>
 
 namespace llc {
 
@@ -162,7 +163,7 @@ private:
     void collect_errors() {
         assert(children.size() == error_handlers.size() &&
                "TaskGroup child/Error-handler vectors diverged");
-        for (std::size_t i = 0; i < children.size(); ++i) {
+        for (usize i = 0; i < children.size(); ++i) {
             if (children[i] && children[i]->state == AsyncNode::FAILED) {
                 error_handlers[i](*children[i], *this);
             }
@@ -170,8 +171,8 @@ private:
     }
 
     void compact_children() noexcept {
-        std::size_t live = 0;
-        for (std::size_t i = 0; i < children.size(); ++i) {
+        usize live = 0;
+        for (usize i = 0; i < children.size(); ++i) {
             if (children[i]) {
                 children[live] = children[i];
                 error_handlers[live] = error_handlers[i];

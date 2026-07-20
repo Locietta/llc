@@ -11,13 +11,14 @@
 #include <type_traits>
 #include <utility>
 
-#include "llc/utils/config.h"
-#include "llc/utils/type_list.h"
-#include "llc/utils/type_traits.h"
-#include "llc/async/runtime/node.h"
-#include "llc/async/runtime/task.h"
-#include "llc/async/vocab/awaitable.h"
-#include "llc/async/vocab/outcome.h"
+#include <llc/scalar_types.hpp>
+#include <llc/utils/config.h>
+#include <llc/utils/type_list.h>
+#include <llc/utils/type_traits.h>
+#include <llc/async/runtime/node.h>
+#include <llc/async/runtime/task.h>
+#include <llc/async/vocab/awaitable.h>
+#include <llc/async/vocab/outcome.h>
 
 namespace llc::detail {
 
@@ -178,11 +179,11 @@ using normalized_range_task_t = normalized_task_t<range_async_value_t<Range>>;
 template <typename Range>
 concept async_range = std::ranges::input_range<Range> && awaitable<range_async_value_t<Range>>;
 
-template <typename Return, std::size_t I = 0, typename Tuple, typename F>
-Return tuple_visit_at_return(std::size_t index, Tuple &tuple, F &&f) {
+template <typename Return, usize I = 0, typename Tuple, typename F>
+Return tuple_visit_at_return(usize index, Tuple &tuple, F &&f) {
     if constexpr (I < std::tuple_size_v<std::remove_reference_t<Tuple>>) {
         if (index == I) {
-            return f(std::integral_constant<std::size_t, I>{}, std::get<I>(tuple));
+            return f(std::integral_constant<usize, I>{}, std::get<I>(tuple));
         }
         return tuple_visit_at_return<Return, I + 1>(index, tuple, std::forward<F>(f));
     } else {

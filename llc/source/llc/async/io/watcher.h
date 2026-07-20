@@ -2,9 +2,10 @@
 
 #include <chrono>
 
-#include "llc/async/runtime/task.h"
-#include "llc/async/vocab/error.h"
-#include "llc/async/vocab/owned.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/runtime/task.h>
+#include <llc/async/vocab/error.h>
+#include <llc/async/vocab/owned.h>
 
 namespace llc {
 
@@ -56,7 +57,7 @@ public:
 
     static Result<Signal> create(EventLoop &loop = EventLoop::current());
 
-    Error start(int signum);
+    Error start(i32 signum);
 
     Error stop();
 
@@ -157,7 +158,7 @@ private:
 
 Task<> sleep(std::chrono::milliseconds timeout, EventLoop &loop = EventLoop::current());
 
-inline Task<> sleep(int ms, EventLoop &loop = EventLoop::current()) {
+inline Task<> sleep(i32 ms, EventLoop &loop = EventLoop::current()) {
     return sleep(std::chrono::milliseconds{ms}, loop);
 }
 

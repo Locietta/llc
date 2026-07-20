@@ -1,16 +1,17 @@
-#include "llc/async/io/process.h"
+#include "process.h"
 
 #include <cassert>
 #include <csignal>
 
-#include "awaiter.h"
-#include "llc/async/io/loop.h"
-#include "llc/async/vocab/error.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/io/awaiter.h>
+#include <llc/async/io/loop.h>
+#include <llc/async/vocab/error.h>
 
 namespace llc {
 
-static unsigned int to_uv_process_flags(const Process::CreationOptions &options) {
-    unsigned int out = 0;
+static u32 to_uv_process_flags(const Process::CreationOptions &options) {
+    u32 out = 0;
     if (options.detached) {
         out |= UV_PROCESS_DETACHED;
     }
@@ -110,7 +111,7 @@ Process::Stdio Process::Stdio::ignore() {
     return io;
 }
 
-Process::Stdio Process::Stdio::from_fd(int fd) {
+Process::Stdio Process::Stdio::from_fd(i32 fd) {
     Stdio io{};
     io.type = Kind::FD_STREAM;
     io.descriptor = fd;
@@ -155,14 +156,14 @@ Result<Process::SpawnResult> Process::spawn(const Options &opts, EventLoop &loop
     std::array<Pipe, 3> created_pipes{};
     std::array<uv_stdio_container_t, 3> stdio{};
 
-    for (std::size_t i = 0; i < opts.streams.size(); ++i) {
+    for (usize i = 0; i < opts.streams.size(); ++i) {
         auto &cfg = opts.streams[i];
         auto &dst = stdio[i];
 
         switch (cfg.type) {
             case Stdio::Kind::INHERIT_STREAM:
                 dst.flags = UV_INHERIT_FD;
-                dst.data.fd = static_cast<int>(i);
+                dst.data.fd = static_cast<i32>(i);
                 break;
             case Stdio::Kind::IGNORE_STREAM: dst.flags = UV_IGNORE; break;
             case Stdio::Kind::FD_STREAM:
@@ -178,11 +179,11 @@ Result<Process::SpawnResult> Process::spawn(const Options &opts, EventLoop &loop
                 dst.flags = UV_CREATE_PIPE;
                 if (cfg.readable) {
                     dst.flags =
-                        static_cast<uv_stdio_flags>(dst.flags | static_cast<int>(UV_READABLE_PIPE));
+                        static_cast<uv_stdio_flags>(dst.flags | static_cast<i32>(UV_READABLE_PIPE));
                 }
                 if (cfg.writable) {
                     dst.flags =
-                        static_cast<uv_stdio_flags>(dst.flags | static_cast<int>(UV_WRITABLE_PIPE));
+                        static_cast<uv_stdio_flags>(dst.flags | static_cast<i32>(UV_WRITABLE_PIPE));
                 }
 
                 dst.data.stream = static_cast<uv_stream_t *>(pipe->handle());
@@ -194,7 +195,7 @@ Result<Process::SpawnResult> Process::spawn(const Options &opts, EventLoop &loop
     }
 
     uv_process_options_t uv_opts{};
-    uv_opts.exit_cb = +[](uv_process_t *handle, int64_t exit_status, int term_signal) {
+    uv_opts.exit_cb = +[](uv_process_t *handle, i64 exit_status, i32 term_signal) {
         auto *self = static_cast<Process::Self *>(handle->data);
         assert(self != nullptr && "Process exit callback requires Process state in handle->data");
 
@@ -202,7 +203,7 @@ Result<Process::SpawnResult> Process::spawn(const Options &opts, EventLoop &loop
     };
     uv_opts.file = opts.file.c_str();
     uv_opts.args = argv.data();
-    uv_opts.stdio_count = static_cast<int>(stdio.size());
+    uv_opts.stdio_count = static_cast<i32>(stdio.size());
     uv_opts.stdio = stdio.data();
 
     if (!envp.empty()) {
@@ -248,7 +249,7 @@ Task<Process::WaitResult> Process::wait() {
     co_return co_await ProcessAwait{self.get()};
 }
 
-int Process::pid() const noexcept {
+i32 Process::pid() const noexcept {
     if (!self || !self->initialized()) {
         return -1;
     }
@@ -256,7 +257,7 @@ int Process::pid() const noexcept {
     return self->handle.pid;
 }
 
-Error Process::kill(int signum) {
+Error Process::kill(i32 signum) {
     if (!self || !self->initialized()) {
         return Error::k_invalid_argument;
     }

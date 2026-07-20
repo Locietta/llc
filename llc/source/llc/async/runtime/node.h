@@ -11,7 +11,8 @@
 #include <source_location>
 #include <vector>
 
-#include "llc/utils/config.h"
+#include <llc/scalar_types.hpp>
+#include <llc/utils/config.h>
 
 namespace llc {
 
@@ -25,7 +26,7 @@ class TaskFrame;
 /// referenced by WaitNode nodes while a Task is blocked on them.
 class AsyncNode {
 public:
-    enum class NodeKind : std::uint8_t {
+    enum class NodeKind : u8 {
         TASK,
 
         /// Wait queue entries - WaitNode subclasses.
@@ -42,7 +43,7 @@ public:
         SYSTEM_IO,
     };
 
-    enum Policy : uint8_t {
+    enum Policy : u8 {
         NONE = 0,
         /// Reserved for future use.
         EXPLICIT_CANCEL = 1 << 0,
@@ -52,7 +53,7 @@ public:
         INTERCEPT_CANCEL = 1 << 1,
     };
 
-    enum State : uint8_t {
+    enum State : u8 {
         PENDING,
         RUNNING,
         CANCELLED,
@@ -277,7 +278,7 @@ protected:
     /// (set by cancel() before it dispatches on the node kind). settle()
     /// treats it like a Cancel decision: it upgrades a plain RESUME, but a
     /// child Error still outranks it.
-    enum class Decision : std::uint8_t {
+    enum class Decision : u8 {
         /// Undecided. A WhenAll whose children all succeed settles as
         /// success without ever recording a decision.
         NONE,
@@ -294,23 +295,23 @@ protected:
     };
 
     /// Sentinel value for WhenAny: no winner yet.
-    constexpr static std::size_t k_npos = (std::numeric_limits<std::size_t>::max)();
+    constexpr static usize k_npos = (std::numeric_limits<usize>::max)();
 
     AsyncNode *parent = nullptr;
 
     std::vector<AsyncNode *> children;
 
     /// Unfinished children plus active stack pins. Zero means "safe to settle".
-    std::size_t pending = 0;
+    usize pending = 0;
 
     /// Index of the first child to finish (WhenAny only).
-    std::size_t winner = k_npos;
+    usize winner = k_npos;
 
     /// Index of the first child to finish with a structured Error or exception.
-    std::size_t first_error_child = k_npos;
+    usize first_error_child = k_npos;
 
     /// Index of the first child to finish with Cancellation.
-    std::size_t first_cancel_child = k_npos;
+    usize first_cancel_child = k_npos;
 
     Decision decision = Decision::NONE;
 
@@ -321,7 +322,7 @@ protected:
     /// child-frame reclamation. Used by TaskGroup only: completed children
     /// that join() will never inspect again are destroyed on completion
     /// instead of accumulating until the group is destroyed.
-    std::size_t reclaimed = 0;
+    usize reclaimed = 0;
 
     /// Keeps `pending` above zero while a loop over `children` is on the
     /// stack. The holder must call settle_if_idle() after the Pin dies.
@@ -364,12 +365,12 @@ protected:
         }
     }
 
-    std::size_t find_child_index(const AsyncNode &child) const {
+    usize find_child_index(const AsyncNode &child) const {
         auto it = std::ranges::find(children, &child);
         assert(it != children.end() && "child not found in aggregate");
         if (it == children.end())
             std::abort();
-        return static_cast<std::size_t>(it - children.begin());
+        return static_cast<usize>(it - children.begin());
     }
 
     /// Rethrows the propagated exception if one was captured from a failed child.

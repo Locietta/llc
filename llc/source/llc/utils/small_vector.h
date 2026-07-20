@@ -14,6 +14,7 @@
 #include <type_traits>
 #include <utility>
 
+#include <llc/scalar_types.hpp>
 #include <llc/utils/memory.h>
 
 namespace llc {
@@ -21,7 +22,7 @@ namespace llc {
 template <typename T>
 class HybridVector;
 
-template <typename T, unsigned int InlineCapacity>
+template <typename T, u32 InlineCapacity>
 class SmallVector;
 
 namespace detail {
@@ -32,7 +33,7 @@ struct IsSmallVector : std::false_type {};
 template <typename T>
 struct IsSmallVector<HybridVector<T>> : std::true_type {};
 
-template <typename T, unsigned int InlineCapacity>
+template <typename T, u32 InlineCapacity>
 struct IsSmallVector<SmallVector<T, InlineCapacity>> : std::true_type {};
 
 template <typename Range, typename T>
@@ -43,19 +44,19 @@ concept small_vector_compatible_range =
 
 template <typename T>
 using small_vector_size_type =
-    std::conditional_t<sizeof(T) < 4 && sizeof(void *) >= 8, std::uint64_t, std::uint32_t>;
+    std::conditional_t<sizeof(T) < 4 && sizeof(void *) >= 8, u64, u32>;
 
 template <typename T>
 struct DefaultBufferSize {
-    constexpr static std::size_t k_preferred_size = 64;
+    constexpr static usize k_preferred_size = 64;
 
     static_assert(
         sizeof(T) <= 256,
         "Default SmallVector inline storage would be too large. "
         "Use SmallVector<T, N> with an explicit inline capacity.");
 
-    constexpr static std::size_t k_inline_bytes = k_preferred_size > sizeof(SmallVector<T, 0>) ? k_preferred_size - sizeof(SmallVector<T, 0>) : 0;
-    constexpr static std::size_t k_value =
+    constexpr static usize k_inline_bytes = k_preferred_size > sizeof(SmallVector<T, 0>) ? k_preferred_size - sizeof(SmallVector<T, 0>) : 0;
+    constexpr static usize k_value =
         k_inline_bytes / sizeof(T) == 0 ? 1 : k_inline_bytes / sizeof(T);
 };
 
@@ -88,7 +89,7 @@ struct SynthThreeWay {
     }
 };
 
-template <typename T, unsigned int InlineCapacity>
+template <typename T, u32 InlineCapacity>
 struct InlineBuffer {
 protected:
     alignas(T) std::byte buffer[InlineCapacity * sizeof(T)];
@@ -108,13 +109,13 @@ struct alignas(T) InlineBuffer<T, 0> {};
 
 template <typename T>
 class HybridVector {
-    template <typename, unsigned int>
+    template <typename, u32>
     friend class SmallVector;
 
 public:
     using value_type = T;
-    using size_type = std::size_t;
-    using difference_type = std::ptrdiff_t;
+    using size_type = usize;
+    using difference_type = isize;
     using reference = value_type &;
     using const_reference = const value_type &;
     using pointer = value_type *;
@@ -161,7 +162,7 @@ protected:
     }
 
 private:
-    constexpr static std::size_t k_header_alignment = alignof(pointer) > alignof(size_storage_type) ? alignof(pointer) : alignof(size_storage_type);
+    constexpr static usize k_header_alignment = alignof(pointer) > alignof(size_storage_type) ? alignof(pointer) : alignof(size_storage_type);
 
     struct AlignmentAndSize {
         alignas(k_header_alignment) std::byte header[sizeof(pointer) + 2 * sizeof(size_storage_type)];
@@ -1282,7 +1283,7 @@ public:
     }
 };
 
-template <typename T, unsigned int InlineCapacity = detail::DefaultBufferSize<T>::k_value>
+template <typename T, u32 InlineCapacity = detail::DefaultBufferSize<T>::k_value>
 class SmallVector : public HybridVector<T>, private detail::InlineBuffer<T, InlineCapacity> {
     using base_type = HybridVector<T>;
     using storage_base = detail::InlineBuffer<T, InlineCapacity>;
@@ -1296,7 +1297,7 @@ public:
     constexpr static size_type k_inline_capacity_v = InlineCapacity;
 
 private:
-    template <unsigned int OtherCapacity>
+    template <u32 OtherCapacity>
     constexpr void move_from_typed_small_vector(SmallVector<value_type, OtherCapacity> &&other) {
         this->move_from_other(static_cast<base_type &&>(other));
         other.reset_to_small(OtherCapacity);
@@ -1342,7 +1343,7 @@ public:
 
     constexpr SmallVector(const SmallVector &other) : SmallVector(static_cast<const base_type &>(other)) {}
 
-    template <unsigned int OtherCapacity>
+    template <u32 OtherCapacity>
     constexpr SmallVector(const SmallVector<value_type, OtherCapacity> &other) : SmallVector(static_cast<const base_type &>(other)) {}
 
     constexpr SmallVector(SmallVector &&other) noexcept(
@@ -1350,7 +1351,7 @@ public:
         move_from_typed_small_vector(std::move(other));
     }
 
-    template <unsigned int OtherCapacity>
+    template <u32 OtherCapacity>
     constexpr SmallVector(SmallVector<value_type, OtherCapacity> &&other) : SmallVector() {
         move_from_typed_small_vector(std::move(other));
     }
@@ -1385,7 +1386,7 @@ public:
         return *this;
     }
 
-    template <unsigned int OtherCapacity>
+    template <u32 OtherCapacity>
     constexpr SmallVector &operator=(SmallVector<value_type, OtherCapacity> &&other) {
         this->move_assign_from_other(static_cast<base_type &&>(other));
         other.reset_to_small(OtherCapacity);
@@ -1397,7 +1398,7 @@ public:
         return *this;
     }
 
-    template <unsigned int OtherCapacity>
+    template <u32 OtherCapacity>
     constexpr void assign(SmallVector<value_type, OtherCapacity> &&other) {
         if (reinterpret_cast<const void *>(this) ==
             reinterpret_cast<const void *>(std::addressof(other))) {

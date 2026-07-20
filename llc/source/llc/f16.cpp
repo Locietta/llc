@@ -1,7 +1,7 @@
 #include "f16.h"
 
 #include <bit>
-#include <llc/types.hpp>
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 
@@ -9,7 +9,7 @@ namespace {
 
 using storage_type = f16::storage_type;
 
-storage_type float_to_f16_bits(float value) noexcept {
+storage_type float_to_f16_bits(f32 value) noexcept {
     const u32 bits = std::bit_cast<u32>(value);
     storage_type result = static_cast<storage_type>((bits >> 16) & 0x8000u);
     storage_type mantissa = static_cast<storage_type>((bits >> 12) & 0x07ffu);
@@ -33,14 +33,14 @@ storage_type float_to_f16_bits(float value) noexcept {
     return result;
 }
 
-float f16_bits_to_float(storage_type bits) noexcept {
+f32 f16_bits_to_float(storage_type bits) noexcept {
     const u32 sign = (static_cast<u32>(bits & 0x8000u)) << 16;
     u32 exponent = (bits >> 10) & 0x1fu;
     u32 mantissa = bits & 0x03ffu;
 
     if (exponent == 0) {
         if (mantissa == 0) {
-            return std::bit_cast<float>(sign);
+            return std::bit_cast<f32>(sign);
         }
         exponent = 113;
         while ((mantissa & 0x0400u) == 0) {
@@ -49,24 +49,24 @@ float f16_bits_to_float(storage_type bits) noexcept {
         }
         mantissa &= 0x03ffu;
         const u32 value_bits = sign | (exponent << 23) | (mantissa << 13);
-        return std::bit_cast<float>(value_bits);
+        return std::bit_cast<f32>(value_bits);
     }
 
     if (exponent == 31) {
         const u32 value_bits = sign | 0x7f800000u | (mantissa << 13);
-        return std::bit_cast<float>(value_bits);
+        return std::bit_cast<f32>(value_bits);
     }
 
     exponent = exponent + (127 - 15);
     const u32 value_bits = sign | (exponent << 23) | (mantissa << 13);
-    return std::bit_cast<float>(value_bits);
+    return std::bit_cast<f32>(value_bits);
 }
 
 } // namespace
 
-f16::f16(float value) noexcept : bits_(float_to_f16_bits(value)) {}
+f16::f16(f32 value) noexcept : bits_(float_to_f16_bits(value)) {}
 
-f16::operator float() const noexcept {
+f16::operator f32() const noexcept {
     return f16_bits_to_float(bits_);
 }
 
@@ -75,22 +75,22 @@ f16 f16::operator-() const noexcept {
 }
 
 f16 &f16::operator+=(f16 rhs) noexcept {
-    *this = f16(static_cast<float>(*this) + static_cast<float>(rhs));
+    *this = f16(static_cast<f32>(*this) + static_cast<f32>(rhs));
     return *this;
 }
 
 f16 &f16::operator-=(f16 rhs) noexcept {
-    *this = f16(static_cast<float>(*this) - static_cast<float>(rhs));
+    *this = f16(static_cast<f32>(*this) - static_cast<f32>(rhs));
     return *this;
 }
 
 f16 &f16::operator*=(f16 rhs) noexcept {
-    *this = f16(static_cast<float>(*this) * static_cast<float>(rhs));
+    *this = f16(static_cast<f32>(*this) * static_cast<f32>(rhs));
     return *this;
 }
 
 f16 &f16::operator/=(f16 rhs) noexcept {
-    *this = f16(static_cast<float>(*this) / static_cast<float>(rhs));
+    *this = f16(static_cast<f32>(*this) / static_cast<f32>(rhs));
     return *this;
 }
 

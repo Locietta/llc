@@ -4,39 +4,40 @@
 #include <cstddef>
 #include <memory>
 #include <utility>
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 
 class RingBuffer {
 public:
     /// contract: pre(cap > 0)
-    explicit RingBuffer(size_t cap = 64 * 1024)
+    explicit RingBuffer(usize cap = 64 * 1024)
         : storage(std::make_unique_for_overwrite<char[]>(cap)), capacity(cap) {
         assert(cap > 0 && "RingBuffer capacity must be greater than zero");
     }
 
-    size_t readable_bytes() const {
+    usize readable_bytes() const {
         return size;
     }
 
-    size_t writable_bytes() const {
+    usize writable_bytes() const {
         return capacity - size;
     }
 
-    size_t read(char *dest, size_t len);
+    usize read(char *dest, usize len);
 
-    std::pair<const char *, size_t> get_read_ptr() const;
-    void advance_read(size_t len);
+    std::pair<const char *, usize> get_read_ptr() const;
+    void advance_read(usize len);
 
-    std::pair<char *, size_t> get_write_ptr();
-    void advance_write(size_t len);
+    std::pair<char *, usize> get_write_ptr();
+    void advance_write(usize len);
 
 private:
     std::unique_ptr<char[]> storage;
-    size_t capacity;
-    size_t head = 0;
-    size_t tail = 0;
-    size_t size = 0;
+    usize capacity;
+    usize head = 0;
+    usize tail = 0;
+    usize size = 0;
 };
 
 } // namespace llc

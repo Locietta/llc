@@ -1,10 +1,11 @@
-#include "llc/async/io/udp.h"
+#include "udp.h"
 
 #include <cassert>
 #include <optional>
 #include <utility>
 
-#include "awaiter.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/io/awaiter.h>
 #include <llc/async/io/loop.h>
 #include <llc/async/vocab/error.h>
 
@@ -24,7 +25,7 @@ struct Udp::Self : uv::handle<Udp::Self, uv_udp_t> {
 
 namespace {
 
-constexpr std::size_t k_udp_recv_buffer_size = 64 * 1024;
+constexpr usize k_udp_recv_buffer_size = 64 * 1024;
 
 static Udp::Self::pointer make_udp_self() {
     auto self = Udp::Self::make();
@@ -32,8 +33,8 @@ static Udp::Self::pointer make_udp_self() {
     return self;
 }
 
-static Result<unsigned int> to_uv_udp_init_flags(const Udp::CreateOptions &options) {
-    unsigned int out = 0;
+static Result<u32> to_uv_udp_init_flags(const Udp::CreateOptions &options) {
+    u32 out = 0;
 #ifdef UV_UDP_IPV6ONLY
     if (options.ipv6_only) {
         out |= UV_UDP_IPV6ONLY;
@@ -55,8 +56,8 @@ static Result<unsigned int> to_uv_udp_init_flags(const Udp::CreateOptions &optio
     return out;
 }
 
-static Result<unsigned int> to_uv_udp_bind_flags(const Udp::BindOptions &options) {
-    unsigned int out = 0;
+static Result<u32> to_uv_udp_bind_flags(const Udp::BindOptions &options) {
+    u32 out = 0;
 #ifdef UV_UDP_IPV6ONLY
     if (options.ipv6_only) {
         out |= UV_UDP_IPV6ONLY;
@@ -87,7 +88,7 @@ static Result<unsigned int> to_uv_udp_bind_flags(const Udp::BindOptions &options
     return out;
 }
 
-static Udp::RecvFlags to_udp_recv_flags([[maybe_unused]] unsigned flags) {
+static Udp::RecvFlags to_udp_recv_flags([[maybe_unused]] u32 flags) {
     Udp::RecvFlags out{};
 #ifdef UV_UDP_PARTIAL
     if ((flags & UV_UDP_PARTIAL) != 0) {
@@ -125,7 +126,7 @@ struct UdpRecvAwait : uv::AwaitOp<UdpRecvAwait> {
         });
     }
 
-    static void on_alloc(uv_handle_t *handle, size_t, uv_buf_t *buf) {
+    static void on_alloc(uv_handle_t *handle, usize, uv_buf_t *buf) {
         auto *u = static_cast<Udp::Self *>(handle->data);
         assert(u != nullptr && "on_alloc requires Udp state in handle->data");
 
@@ -134,10 +135,10 @@ struct UdpRecvAwait : uv::AwaitOp<UdpRecvAwait> {
     }
 
     static void on_read(uv_udp_t *handle,
-                        ssize_t nread,
+                        isize nread,
                         const uv_buf_t *buf,
                         const struct sockaddr *addr,
-                        unsigned flags) {
+                        u32 flags) {
         auto *u = static_cast<Udp::Self *>(handle->data);
         assert(u != nullptr && "on_read requires Udp state in handle->data");
 
@@ -236,7 +237,7 @@ struct UdpSendAwait : uv::AwaitOp<UdpSendAwait> {
         // Keep the request in-flight and wait for on_send() to retire it.
     }
 
-    static void on_send(uv_udp_send_t *req, int status) {
+    static void on_send(uv_udp_send_t *req, i32 status) {
         auto *handle = static_cast<uv_udp_t *>(req->handle);
         assert(handle != nullptr && "on_send requires req->handle");
         auto *u = static_cast<Udp::Self *>(handle->data);
@@ -275,7 +276,7 @@ struct UdpSendAwait : uv::AwaitOp<UdpSendAwait> {
         self->send.arm(*this, result);
 
         uv_buf_t buf = uv::buf_init(storage.empty() ? nullptr : storage.data(),
-                                    static_cast<unsigned>(storage.size()));
+                                    static_cast<u32>(storage.size()));
 
         const sockaddr *addr =
             dest.has_value() ? reinterpret_cast<const sockaddr *>(&dest.value()) : nullptr;
@@ -322,7 +323,7 @@ static Result<Udp::Endpoint> endpoint_from_sockaddr(const sockaddr *addr) {
 
     Udp::Endpoint out{};
     char host[INET6_ADDRSTRLEN]{};
-    int port = 0;
+    i32 port = 0;
     if (addr->sa_family == AF_INET) {
         auto *in = reinterpret_cast<const sockaddr_in *>(addr);
         if (auto err = uv::ip4_name(*in, host, sizeof(host))) {
@@ -367,7 +368,7 @@ Result<Udp> Udp::create(CreateOptions options, EventLoop &loop) {
     return Udp(std::move(self));
 }
 
-Result<Udp> Udp::open(int fd, EventLoop &loop) {
+Result<Udp> Udp::open(i32 fd, EventLoop &loop) {
     auto self = make_udp_self();
     if (auto err = uv::udp_init(loop, self->handle)) {
         return outcome_error(err);
@@ -380,7 +381,7 @@ Result<Udp> Udp::open(int fd, EventLoop &loop) {
     return Udp(std::move(self));
 }
 
-Error Udp::bind(std::string_view host, int port, BindOptions options) {
+Error Udp::bind(std::string_view host, i32 port, BindOptions options) {
     if (!self) {
         return Error::k_invalid_argument;
     }
@@ -403,7 +404,7 @@ Error Udp::bind(std::string_view host, int port, BindOptions options) {
     return {};
 }
 
-Error Udp::connect(std::string_view host, int port) {
+Error Udp::connect(std::string_view host, i32 port) {
     if (!self) {
         return Error::k_invalid_argument;
     }
@@ -433,7 +434,7 @@ Error Udp::disconnect() {
     return {};
 }
 
-Task<void, Error> Udp::send(std::span<const char> data, std::string_view host, int port) {
+Task<void, Error> Udp::send(std::span<const char> data, std::string_view host, i32 port) {
     if (!self) {
         co_await fail(Error::k_invalid_argument);
     }
@@ -460,7 +461,7 @@ Task<void, Error> Udp::send(std::span<const char> data) {
     }
 }
 
-Error Udp::try_send(std::span<const char> data, std::string_view host, int port) {
+Error Udp::try_send(std::span<const char> data, std::string_view host, i32 port) {
     if (!self) {
         return Error::k_invalid_argument;
     }
@@ -471,7 +472,7 @@ Error Udp::try_send(std::span<const char> data, std::string_view host, int port)
     }
 
     uv_buf_t buf =
-        uv::buf_init(const_cast<char *>(data.data()), static_cast<unsigned int>(data.size()));
+        uv::buf_init(const_cast<char *>(data.data()), static_cast<u32>(data.size()));
     if (auto sent = uv::udp_try_send(self->handle,
                                      std::span<const uv_buf_t>{&buf, 1},
                                      reinterpret_cast<const sockaddr *>(&resolved->storage));
@@ -488,7 +489,7 @@ Error Udp::try_send(std::span<const char> data) {
     }
 
     uv_buf_t buf =
-        uv::buf_init(const_cast<char *>(data.data()), static_cast<unsigned int>(data.size()));
+        uv::buf_init(const_cast<char *>(data.data()), static_cast<u32>(data.size()));
     if (auto sent = uv::udp_try_send(self->handle, std::span<const uv_buf_t>{&buf, 1}, nullptr);
         !sent) {
         return sent.error();
@@ -529,7 +530,7 @@ Result<Udp::Endpoint> Udp::getsockname() const {
     }
 
     sockaddr_storage storage{};
-    int len = sizeof(storage);
+    i32 len = sizeof(storage);
     if (auto err = uv::udp_getsockname(self->handle, *reinterpret_cast<sockaddr *>(&storage), len)) {
         return outcome_error(err);
     }
@@ -543,7 +544,7 @@ Result<Udp::Endpoint> Udp::getpeername() const {
     }
 
     sockaddr_storage storage{};
-    int len = sizeof(storage);
+    i32 len = sizeof(storage);
     if (auto err = uv::udp_getpeername(self->handle, *reinterpret_cast<sockaddr *>(&storage), len)) {
         return outcome_error(err);
     }
@@ -605,7 +606,7 @@ Error Udp::set_multicast_loop(bool on) {
     return {};
 }
 
-Error Udp::set_multicast_ttl(int ttl) {
+Error Udp::set_multicast_ttl(i32 ttl) {
     if (!self) {
         return Error::k_invalid_argument;
     }
@@ -642,7 +643,7 @@ Error Udp::set_broadcast(bool on) {
     return {};
 }
 
-Error Udp::set_ttl(int ttl) {
+Error Udp::set_ttl(i32 ttl) {
     if (!self) {
         return Error::k_invalid_argument;
     }

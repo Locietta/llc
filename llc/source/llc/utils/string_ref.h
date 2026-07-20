@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 
@@ -15,13 +16,13 @@ namespace llc {
 class StringRef : public std::string_view {
     using base = std::string_view;
 
-    constexpr static int compare_memory(const char *lhs, const char *rhs, std::size_t length) {
+    constexpr static i32 compare_memory(const char *lhs, const char *rhs, usize length) {
         if (length == 0) {
             return 0;
         }
-        for (std::size_t i = 0; i < length; ++i) {
-            auto l = static_cast<unsigned char>(lhs[i]);
-            auto r = static_cast<unsigned char>(rhs[i]);
+        for (usize i = 0; i < length; ++i) {
+            auto l = static_cast<u8>(lhs[i]);
+            auto r = static_cast<u8>(rhs[i]);
             if (l != r) {
                 return l < r ? -1 : 1;
             }
@@ -37,10 +38,10 @@ class StringRef : public std::string_view {
         return (c >= 'a' && c <= 'z') ? static_cast<char>(c - 'a' + 'A') : c;
     }
 
-    constexpr static int ascii_strncasecmp(StringRef lhs, StringRef rhs, std::size_t length) {
-        for (std::size_t i = 0; i < length; ++i) {
-            auto l = static_cast<unsigned char>(to_lower(lhs[i]));
-            auto r = static_cast<unsigned char>(to_lower(rhs[i]));
+    constexpr static i32 ascii_strncasecmp(StringRef lhs, StringRef rhs, usize length) {
+        for (usize i = 0; i < length; ++i) {
+            auto l = static_cast<u8>(to_lower(lhs[i]));
+            auto r = static_cast<u8>(to_lower(rhs[i]));
             if (l != r) {
                 return l < r ? -1 : 1;
             }
@@ -67,8 +68,8 @@ public:
     // --- Comparison ---
 
     /// Compare two strings; result is negative, zero, or positive.
-    [[nodiscard]] constexpr int compare(StringRef rhs) const {
-        if (int res = compare_memory(data(), rhs.data(), std::min(size(), rhs.size()))) {
+    [[nodiscard]] constexpr i32 compare(StringRef rhs) const {
+        if (i32 res = compare_memory(data(), rhs.data(), std::min(size(), rhs.size()))) {
             return res;
         }
         if (size() == rhs.size()) {
@@ -78,9 +79,9 @@ public:
     }
 
     /// Compare two strings, ignoring case.
-    [[nodiscard]] constexpr int compare_insensitive(StringRef rhs) const {
+    [[nodiscard]] constexpr i32 compare_insensitive(StringRef rhs) const {
         auto min = std::min(size(), rhs.size());
-        if (int res = ascii_strncasecmp(*this, rhs, min)) {
+        if (i32 res = ascii_strncasecmp(*this, rhs, min)) {
             return res;
         }
         if (size() == rhs.size()) {
@@ -126,7 +127,7 @@ public:
 
     /// Search for the first character satisfying the predicate.
     template <typename F>
-    [[nodiscard]] constexpr std::size_t find_if(F f, std::size_t from = 0) const {
+    [[nodiscard]] constexpr usize find_if(F f, usize from = 0) const {
         from = std::min(from, size());
         StringRef s = drop_front(from);
         while (!s.empty()) {
@@ -140,19 +141,19 @@ public:
 
     /// Search for the first character not satisfying the predicate.
     template <typename F>
-    [[nodiscard]] constexpr std::size_t find_if_not(F f, std::size_t from = 0) const {
+    [[nodiscard]] constexpr usize find_if_not(F f, usize from = 0) const {
         return find_if([&](char c) { return !f(c); }, from);
     }
 
     /// Search for the first character, ignoring case.
-    [[nodiscard]] constexpr std::size_t find_insensitive(char c, std::size_t from = 0) const {
+    [[nodiscard]] constexpr usize find_insensitive(char c, usize from = 0) const {
         char l = to_lower(c);
         return find_if([l](char d) { return to_lower(d) == l; }, from);
     }
 
     /// Search for the first occurrence of a string, ignoring case.
-    [[nodiscard]] constexpr std::size_t find_insensitive(StringRef str,
-                                                         std::size_t from = 0) const {
+    [[nodiscard]] constexpr usize find_insensitive(StringRef str,
+                                                   usize from = 0) const {
         from = std::min(from, size());
         StringRef s = drop_front(from);
         while (s.size() >= str.size()) {
@@ -166,12 +167,12 @@ public:
     }
 
     /// Search for the last character, ignoring case.
-    [[nodiscard]] constexpr std::size_t rfind_insensitive(char c, std::size_t from = npos) const {
+    [[nodiscard]] constexpr usize rfind_insensitive(char c, usize from = npos) const {
         if (empty()) {
             return npos;
         }
         from = std::min(from, size() - 1);
-        for (std::size_t i = from + 1; i != 0;) {
+        for (usize i = from + 1; i != 0;) {
             --i;
             if (to_lower(data()[i]) == to_lower(c)) {
                 return i;
@@ -181,12 +182,12 @@ public:
     }
 
     /// Search for the last occurrence of a string, ignoring case.
-    [[nodiscard]] constexpr std::size_t rfind_insensitive(StringRef str) const {
-        std::size_t n = str.size();
+    [[nodiscard]] constexpr usize rfind_insensitive(StringRef str) const {
+        usize n = str.size();
         if (n > size()) {
             return npos;
         }
-        for (std::size_t i = size() - n + 1; i != 0;) {
+        for (usize i = size() - n + 1; i != 0;) {
             --i;
             if (substr(i, n).equals_insensitive(str)) {
                 return i;
@@ -196,12 +197,12 @@ public:
     }
 
     /// Find the last character in the string that is not c, or npos if not found.
-    [[nodiscard]] constexpr std::size_t find_last_not_of(char c, std::size_t from = npos) const {
+    [[nodiscard]] constexpr usize find_last_not_of(char c, usize from = npos) const {
         if (empty()) {
             return npos;
         }
         from = std::min(from, size() - 1);
-        for (std::size_t i = from + 1; i != 0;) {
+        for (usize i = from + 1; i != 0;) {
             --i;
             if (data()[i] != c) {
                 return i;
@@ -213,9 +214,9 @@ public:
     // --- Count ---
 
     /// Return the number of occurrences of c in the string.
-    [[nodiscard]] constexpr std::size_t count(char c) const {
-        std::size_t result = 0;
-        for (std::size_t i = 0; i < size(); ++i) {
+    [[nodiscard]] constexpr usize count(char c) const {
+        usize result = 0;
+        for (usize i = 0; i < size(); ++i) {
             if (data()[i] == c) {
                 ++result;
             }
@@ -224,13 +225,13 @@ public:
     }
 
     /// Return the number of non-overlapped occurrences of str in the string.
-    [[nodiscard]] constexpr std::size_t count(StringRef str) const {
-        std::size_t result = 0;
-        std::size_t n = str.size();
+    [[nodiscard]] constexpr usize count(StringRef str) const {
+        usize result = 0;
+        usize n = str.size();
         if (n == 0) {
             return 0;
         }
-        std::size_t pos = 0;
+        usize pos = 0;
         while ((pos = find(str, pos)) != npos) {
             ++result;
             pos += n;
@@ -241,13 +242,13 @@ public:
     // --- Substring / Slice ---
 
     /// Return a reference to the substring from [start, start + n).
-    [[nodiscard]] constexpr StringRef substr(std::size_t start, std::size_t n = npos) const {
+    [[nodiscard]] constexpr StringRef substr(usize start, usize n = npos) const {
         start = std::min(start, size());
         return StringRef(data() + start, std::min(n, size() - start));
     }
 
     /// Return a reference to the substring from [start, end).
-    [[nodiscard]] constexpr StringRef slice(std::size_t start, std::size_t end) const {
+    [[nodiscard]] constexpr StringRef slice(usize start, usize end) const {
         start = std::min(start, size());
         end = std::clamp(end, start, size());
         return StringRef(data() + start, end - start);
@@ -256,7 +257,7 @@ public:
     // --- Take / Drop ---
 
     /// Return a StringRef with only the first n elements remaining.
-    [[nodiscard]] constexpr StringRef take_front(std::size_t n = 1) const {
+    [[nodiscard]] constexpr StringRef take_front(usize n = 1) const {
         if (n >= size()) {
             return *this;
         }
@@ -264,7 +265,7 @@ public:
     }
 
     /// Return a StringRef with only the last n elements remaining.
-    [[nodiscard]] constexpr StringRef take_back(std::size_t n = 1) const {
+    [[nodiscard]] constexpr StringRef take_back(usize n = 1) const {
         if (n >= size()) {
             return *this;
         }
@@ -284,13 +285,13 @@ public:
     }
 
     /// Return a StringRef with the first n elements dropped.
-    [[nodiscard]] constexpr StringRef drop_front(std::size_t n = 1) const {
+    [[nodiscard]] constexpr StringRef drop_front(usize n = 1) const {
         assert(size() >= n && "Dropping more elements than exist");
         return substr(n);
     }
 
     /// Return a StringRef with the last n elements dropped.
-    [[nodiscard]] constexpr StringRef drop_back(std::size_t n = 1) const {
+    [[nodiscard]] constexpr StringRef drop_back(usize n = 1) const {
         assert(size() >= n && "Dropping more elements than exist");
         return substr(0, size() - n);
     }
@@ -381,7 +382,7 @@ public:
 
     /// Split into two substrings around the first occurrence of a separator character.
     [[nodiscard]] constexpr std::pair<StringRef, StringRef> split(char separator) const {
-        std::size_t idx = find(separator);
+        usize idx = find(separator);
         if (idx == npos) {
             return {*this, StringRef()};
         }
@@ -390,7 +391,7 @@ public:
 
     /// Split into two substrings around the first occurrence of a separator string.
     [[nodiscard]] constexpr std::pair<StringRef, StringRef> split(StringRef separator) const {
-        std::size_t idx = find(separator);
+        usize idx = find(separator);
         if (idx == npos) {
             return {*this, StringRef()};
         }
@@ -399,7 +400,7 @@ public:
 
     /// Split into two substrings around the last occurrence of a separator character.
     [[nodiscard]] constexpr std::pair<StringRef, StringRef> rsplit(char separator) const {
-        std::size_t idx = rfind(separator);
+        usize idx = rfind(separator);
         if (idx == npos) {
             return {*this, StringRef()};
         }
@@ -408,7 +409,7 @@ public:
 
     /// Split into two substrings around the last occurrence of a separator string.
     [[nodiscard]] constexpr std::pair<StringRef, StringRef> rsplit(StringRef separator) const {
-        std::size_t idx = rfind(separator);
+        usize idx = rfind(separator);
         if (idx == npos) {
             return {*this, StringRef()};
         }
@@ -419,10 +420,10 @@ public:
     /// Calls callback(StringRef) for each part.
     template <typename Callback>
     constexpr void
-    split(Callback callback, char separator, int max_split = -1, bool keep_empty = true) const {
+    split(Callback callback, char separator, i32 max_split = -1, bool keep_empty = true) const {
         StringRef s = *this;
         while (max_split-- != 0) {
-            std::size_t idx = s.find(separator);
+            usize idx = s.find(separator);
             if (idx == npos) {
                 break;
             }
@@ -442,7 +443,7 @@ public:
     template <typename Callback>
     constexpr void split(Callback callback,
                          StringRef separator,
-                         int max_split = -1,
+                         i32 max_split = -1,
                          bool keep_empty = true) const {
         if (separator.empty()) {
             callback(*this);
@@ -450,7 +451,7 @@ public:
         }
         StringRef s = *this;
         while (max_split-- != 0) {
-            std::size_t idx = s.find(separator);
+            usize idx = s.find(separator);
             if (idx == npos) {
                 break;
             }

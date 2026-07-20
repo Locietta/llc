@@ -4,8 +4,9 @@
 #include <cstddef>
 #include <source_location>
 
-#include "llc/async/runtime/node.h"
-#include "llc/async/runtime/task.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/runtime/node.h>
+#include <llc/async/runtime/task.h>
 
 namespace llc {
 
@@ -13,7 +14,7 @@ namespace llc {
 /// nodes; WaitNode sub-objects bridge tasks into the wait queue.
 class SyncPrimitive {
 public:
-    enum class Kind : std::uint8_t {
+    enum class Kind : u8 {
         MUTEX,
         EVENT,
         SEMAPHORE,
@@ -144,7 +145,7 @@ private:
 
 class Semaphore : public SyncPrimitive {
 public:
-    explicit Semaphore(std::ptrdiff_t initial = 0,
+    explicit Semaphore(isize initial = 0,
                        std::source_location location = std::source_location::current()) : SyncPrimitive(SyncPrimitive::Kind::SEMAPHORE) {
         assert(initial >= 0 && "Semaphore initial count must be non-negative");
         this->location = location;
@@ -202,9 +203,9 @@ public:
         return true;
     }
 
-    void release(std::ptrdiff_t n = 1) {
+    void release(isize n = 1) {
         assert(n >= 0 && "Semaphore::release count must be non-negative");
-        for (std::ptrdiff_t i = 0; i < n; ++i) {
+        for (isize i = 0; i < n; ++i) {
             bool transferred = false;
             if (has_waiters()) {
                 while (auto *waiter = pop_waiter()) {
@@ -222,7 +223,7 @@ public:
     }
 
 private:
-    std::ptrdiff_t count = 0;
+    isize count = 0;
 };
 
 class Event : public SyncPrimitive {

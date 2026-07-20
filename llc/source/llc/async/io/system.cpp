@@ -1,23 +1,26 @@
-#include "llc/async/io/system.h"
-
-#include "llc/async/detail/libuv_helper.h"
+#include "system.h"
 
 #if defined(__linux__)
 #include <charconv>
 #include <unistd.h>
-
-#include "llc/async/io/fs.h"
 #elif defined(__APPLE__)
 #include <libproc.h>
 #include <mach/mach.h>
 #elif defined(_WIN32)
+#include <windows.h>
 #include <psapi.h>
+#endif
+
+#include <llc/scalar_types.hpp>
+#include <llc/async/detail/libuv_helper.h>
+#if defined(__linux__)
+#include <llc/async/io/fs.h>
 #endif
 
 namespace llc::sys {
 
-int pid() noexcept {
-    return static_cast<int>(uv::os_getpid());
+i32 pid() noexcept {
+    return static_cast<i32>(uv::os_getpid());
 }
 
 MemoryInfo memory() {
@@ -29,8 +32,8 @@ MemoryInfo memory() {
     return info;
 }
 
-Result<std::size_t> resident_memory() {
-    std::size_t rss = 0;
+Result<usize> resident_memory() {
+    usize rss = 0;
     if (auto err = uv::resident_set_memory(rss)) {
         return outcome_error(err);
     }
@@ -39,14 +42,14 @@ Result<std::size_t> resident_memory() {
 
 Result<std::vector<CpuCore>> cpu_cores() {
     uv_cpu_info_t *infos = nullptr;
-    int count = 0;
+    i32 count = 0;
     if (auto err = uv::cpu_info(infos, count)) {
         return outcome_error(err);
     }
 
     struct Guard {
         uv_cpu_info_t *p;
-        int n;
+        i32 n;
 
         ~Guard() {
             uv::free_cpu_info(p, n);
@@ -54,8 +57,8 @@ Result<std::vector<CpuCore>> cpu_cores() {
     } cleanup{infos, count};
 
     std::vector<CpuCore> result;
-    result.reserve(static_cast<std::size_t>(count));
-    for (int i = 0; i < count; ++i) {
+    result.reserve(static_cast<usize>(count));
+    for (i32 i = 0; i < count; ++i) {
         auto &src = infos[i];
         CpuCore core;
         core.model = src.model ? src.model : "";
@@ -70,7 +73,7 @@ Result<std::vector<CpuCore>> cpu_cores() {
     return result;
 }
 
-unsigned int parallelism() {
+u32 parallelism() {
     return uv::available_parallelism();
 }
 
@@ -85,9 +88,9 @@ Result<UnameInfo> uname() {
 /// Helper: call a libuv string-returning Function with stack buffer,
 /// retry with heap allocation on UV_ENOBUFS.
 template <typename Fn>
-static Result<std::string> read_uv_string(Fn &&fn, std::size_t initial_size) {
+static Result<std::string> read_uv_string(Fn &&fn, usize initial_size) {
     std::string buf(initial_size, '\0');
-    std::size_t size = buf.size();
+    usize size = buf.size();
     auto err = fn(buf.data(), size);
     if (err == Error::k_no_buffer_space_available) {
         buf.resize(size);
@@ -103,41 +106,41 @@ static Result<std::string> read_uv_string(Fn &&fn, std::size_t initial_size) {
 
 Result<std::string> hostname() {
     return read_uv_string(
-        [](char *buf, std::size_t &size) { return uv::os_gethostname(buf, size); },
+        [](char *buf, usize &size) { return uv::os_gethostname(buf, size); },
         256);
 }
 
-Result<std::chrono::duration<double>> uptime() {
-    double value = 0;
+Result<std::chrono::duration<f64>> uptime() {
+    f64 value = 0;
     if (auto err = uv::uptime(value)) {
         return outcome_error(err);
     }
-    return std::chrono::duration<double>(value);
+    return std::chrono::duration<f64>(value);
 }
 
 Result<std::string> home_directory() {
-    return read_uv_string([](char *buf, std::size_t &size) { return uv::os_homedir(buf, size); },
+    return read_uv_string([](char *buf, usize &size) { return uv::os_homedir(buf, size); },
                           1024);
 }
 
 Result<std::string> temp_directory() {
-    return read_uv_string([](char *buf, std::size_t &size) { return uv::os_tmpdir(buf, size); },
+    return read_uv_string([](char *buf, usize &size) { return uv::os_tmpdir(buf, size); },
                           1024);
 }
 
-Result<int> priority(int pid) {
-    int value = 0;
+Result<i32> priority(i32 pid) {
+    i32 value = 0;
     if (auto err = uv::os_getpriority(static_cast<uv_pid_t>(pid), value)) {
         return outcome_error(err);
     }
     return value;
 }
 
-Error set_priority(int value, int pid) {
+Error set_priority(i32 value, i32 pid) {
     return uv::os_setpriority(static_cast<uv_pid_t>(pid), value);
 }
 
-Result<ProcessStat> process(int pid) {
+Result<ProcessStat> process(i32 pid) {
     bool is_self = (pid == 0);
     if (is_self) {
         pid = sys::pid();
@@ -158,11 +161,11 @@ Result<ProcessStat> process(int pid) {
         }
     };
 
-    auto next_ulong = [](const char *&cur, const char *end) -> unsigned long {
+    auto next_u64 = [](const char *&cur, const char *end) -> u64 {
         while (cur < end && *cur == ' ') {
             ++cur;
         }
-        unsigned long val = 0;
+        u64 val = 0;
         auto [ptr, ec] = std::from_chars(cur, end, val);
         cur = ptr;
         return (ec == std::errc{}) ? val : 0;
@@ -178,10 +181,10 @@ Result<ProcessStat> process(int pid) {
         const char *cur = content->data();
         const char *end = cur + content->size();
 
-        unsigned long vsize_pages = next_ulong(cur, end);
-        unsigned long rss_pages = next_ulong(cur, end);
+        u64 vsize_pages = next_u64(cur, end);
+        u64 rss_pages = next_u64(cur, end);
 
-        auto page_size = static_cast<std::size_t>(sysconf(_SC_PAGESIZE));
+        auto page_size = static_cast<usize>(sysconf(_SC_PAGESIZE));
         stat.vsize = vsize_pages * page_size;
         stat.rss = rss_pages * page_size;
     }
@@ -198,23 +201,23 @@ Result<ProcessStat> process(int pid) {
                 const char *end = content->data() + content->size();
 
                 skip_field(cur, end); // state (3)
-                for (int i = 0; i < 6 && cur < end; ++i) {
-                    next_ulong(cur, end); // ppid(4)..flags(9)
+                for (i32 i = 0; i < 6 && cur < end; ++i) {
+                    next_u64(cur, end); // ppid(4)..flags(9)
                 }
 
-                stat.minor_faults = next_ulong(cur, end); // minflt (10)
-                next_ulong(cur, end);                     // cminflt (11)
-                stat.major_faults = next_ulong(cur, end); // majflt (12)
-                next_ulong(cur, end);                     // cmajflt (13)
+                stat.minor_faults = next_u64(cur, end); // minflt (10)
+                next_u64(cur, end);                     // cminflt (11)
+                stat.major_faults = next_u64(cur, end); // majflt (12)
+                next_u64(cur, end);                     // cmajflt (13)
 
-                unsigned long utime_ticks = next_ulong(cur, end); // (14)
-                unsigned long stime_ticks = next_ulong(cur, end); // (15)
+                u64 utime_ticks = next_u64(cur, end); // (14)
+                u64 stime_ticks = next_u64(cur, end); // (15)
 
-                long hz = sysconf(_SC_CLK_TCK);
+                isize hz = sysconf(_SC_CLK_TCK);
                 if (hz <= 0) {
                     hz = 100;
                 }
-                auto uhz = static_cast<std::uint64_t>(hz);
+                auto uhz = static_cast<u64>(hz);
                 stat.user_time = std::chrono::microseconds(utime_ticks * 1'000'000ULL / uhz);
                 stat.system_time = std::chrono::microseconds(stime_ticks * 1'000'000ULL / uhz);
             }
@@ -224,7 +227,7 @@ Result<ProcessStat> process(int pid) {
     if (is_self) {
         uv_rusage_t ru{};
         if (!uv::getrusage(ru)) {
-            stat.max_rss = static_cast<std::size_t>(ru.ru_maxrss) * 1024; // KB -> bytes
+            stat.max_rss = static_cast<usize>(ru.ru_maxrss) * 1024; // KB -> bytes
             stat.voluntary_context_switches = ru.ru_nvcsw;
             stat.involuntary_context_switches = ru.ru_nivcsw;
         }
@@ -232,7 +235,7 @@ Result<ProcessStat> process(int pid) {
 
 #elif defined(__APPLE__)
     struct proc_taskinfo pti{};
-    int ret = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &pti, sizeof(pti));
+    i32 ret = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &pti, sizeof(pti));
     if (ret <= 0) {
         return outcome_error(Error::k_no_such_process);
     }
@@ -276,9 +279,8 @@ Result<ProcessStat> process(int pid) {
 
     FILETIME creation, exit_time, kernel_time, user_time;
     if (GetProcessTimes(h, &creation, &exit_time, &kernel_time, &user_time)) {
-        auto to_us = [](FILETIME ft) -> std::uint64_t {
-            std::uint64_t t =
-                (static_cast<std::uint64_t>(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+        auto to_us = [](FILETIME ft) -> u64 {
+            u64 t = (static_cast<u64>(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
             return t / 10; // 100-ns intervals -> microseconds
         };
         stat.user_time = std::chrono::microseconds(to_us(user_time));

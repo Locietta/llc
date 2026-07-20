@@ -1,9 +1,12 @@
+#include "stream.h"
+
 #include <cassert>
 #include <type_traits>
 #include <utility>
 
-#include "awaiter.h"
-#include "llc/async/io/loop.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/io/awaiter.h>
+#include <llc/async/io/loop.h>
 
 namespace llc {
 
@@ -12,8 +15,8 @@ namespace {
 template <typename T>
 constexpr inline bool k_always_false_v = false;
 
-Result<unsigned int> to_uv_pipe_flags(const Pipe::Options &opts) {
-    unsigned int out = 0;
+Result<u32> to_uv_pipe_flags(const Pipe::Options &opts) {
+    u32 out = 0;
 #ifdef UV_PIPE_NO_TRUNCATE
     if (opts.no_truncate) {
         out |= UV_PIPE_NO_TRUNCATE;
@@ -26,12 +29,12 @@ Result<unsigned int> to_uv_pipe_flags(const Pipe::Options &opts) {
     return out;
 }
 
-Result<unsigned int> to_uv_pipe_connect_flags(const Pipe::Options &opts) {
+Result<u32> to_uv_pipe_connect_flags(const Pipe::Options &opts) {
     return to_uv_pipe_flags(opts);
 }
 
-Result<unsigned int> to_uv_tcp_bind_flags(const Tcp::Options &opts) {
-    unsigned int out = 0;
+Result<u32> to_uv_tcp_bind_flags(const Tcp::Options &opts) {
+    u32 out = 0;
 #ifdef UV_TCP_IPV6ONLY
     if (opts.ipv6_only) {
         out |= UV_TCP_IPV6ONLY;
@@ -97,7 +100,7 @@ struct AcceptAwait : uv::AwaitOp<AcceptAwait<Stream>> {
 };
 
 template <typename Stream>
-void on_connection(uv_stream_t *server, int status) {
+void on_connection(uv_stream_t *server, i32 status) {
     using self_t = typename Acceptor<Stream>::Self;
 
     assert(server != nullptr && "on_connection requires non-null server");
@@ -143,7 +146,7 @@ struct ConnectAwait : uv::AwaitOp<ConnectAwait<Stream>> {
     // Pipe name kept alive for uv_pipe_connect2().
     std::string name;
     // Pipe connect flags.
-    unsigned int flags = 0;
+    u32 flags = 0;
     // Resolved peer address for uv_tcp_connect().
     sockaddr_storage addr{};
     // Result slot returned from await_resume().
@@ -171,7 +174,7 @@ struct ConnectAwait : uv::AwaitOp<ConnectAwait<Stream>> {
         }
     }
 
-    ConnectAwait(self_ptr self, std::string_view host, int port) : self(std::move(self)) {
+    ConnectAwait(self_ptr self, std::string_view host, i32 port) : self(std::move(self)) {
         if constexpr (std::is_same_v<Stream, Tcp>) {
             auto resolved = uv::resolve_addr(host, port);
             if (!resolved) {
@@ -193,7 +196,7 @@ struct ConnectAwait : uv::AwaitOp<ConnectAwait<Stream>> {
         }
     }
 
-    static void on_connect(uv_connect_t *req, int status) {
+    static void on_connect(uv_connect_t *req, i32 status) {
         auto *aw = static_cast<ConnectAwait *>(req->data);
         assert(aw != nullptr && "on_connect requires Awaiter in req->data");
 
@@ -307,7 +310,7 @@ Acceptor<Stream>::Acceptor(UniqueHandle<Self> self) noexcept : self(std::move(se
 template class Acceptor<Pipe>;
 template class Acceptor<Tcp>;
 
-Result<Pipe> Pipe::open(int fd, Pipe::Options opts, EventLoop &loop) {
+Result<Pipe> Pipe::open(i32 fd, Pipe::Options opts, EventLoop &loop) {
     auto pipe_res = create(opts, loop);
     if (!pipe_res) {
         return outcome_error(pipe_res.error());
@@ -373,7 +376,7 @@ Task<Pipe, Error> Pipe::connect(std::string_view name, Pipe::Options opts, Event
 
 Tcp::Tcp(UniqueHandle<Self> self) noexcept : Stream(std::move(self)) {}
 
-Result<Tcp> Tcp::open(int fd, EventLoop &loop) {
+Result<Tcp> Tcp::open(i32 fd, EventLoop &loop) {
     auto self = Self::make();
     if (auto err = uv::tcp_init(loop, self->tcp)) {
         return outcome_error(err);
@@ -386,7 +389,7 @@ Result<Tcp> Tcp::open(int fd, EventLoop &loop) {
     return Tcp(std::move(self));
 }
 
-Task<Tcp, Error> Tcp::connect(std::string_view host, int port, EventLoop &loop) {
+Task<Tcp, Error> Tcp::connect(std::string_view host, i32 port, EventLoop &loop) {
     auto self = Self::make();
     if (auto err = uv::tcp_init(loop, self->tcp)) {
         co_await fail(err);
@@ -396,7 +399,7 @@ Task<Tcp, Error> Tcp::connect(std::string_view host, int port, EventLoop &loop) 
 }
 
 Result<Tcp::Acceptor>
-Tcp::listen(std::string_view host, int port, Tcp::Options opts, EventLoop &loop) {
+Tcp::listen(std::string_view host, i32 port, Tcp::Options opts, EventLoop &loop) {
     auto self = Tcp::Acceptor::Self::make();
     if (auto err = uv::tcp_init(loop, self->tcp)) {
         return outcome_error(err);
@@ -428,14 +431,14 @@ Tcp::listen(std::string_view host, int port, Tcp::Options opts, EventLoop &loop)
     return Tcp::Acceptor(std::move(self));
 }
 
-Result<int> Tcp::local_port(Tcp::Acceptor &acc) {
+Result<i32> Tcp::local_port(Tcp::Acceptor &acc) {
     if (!acc.self) {
         return outcome_error(Error::k_invalid_argument);
     }
 
     sockaddr_storage storage{};
-    int namelen = sizeof(storage);
-    int err = uv_tcp_getsockname(&acc->tcp, reinterpret_cast<sockaddr *>(&storage), &namelen);
+    i32 namelen = sizeof(storage);
+    i32 err = uv_tcp_getsockname(&acc->tcp, reinterpret_cast<sockaddr *>(&storage), &namelen);
     if (err != 0) {
         return outcome_error(uv::status_to_error(err));
     }

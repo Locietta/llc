@@ -1,8 +1,8 @@
-#include "llc/async/runtime/sync.h"
+#include "sync.h"
 
 #include <cassert>
 
-#include "llc/async/io/loop.h"
+#include <llc/async/io/loop.h>
 
 namespace llc {
 

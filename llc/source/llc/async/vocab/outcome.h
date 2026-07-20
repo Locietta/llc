@@ -8,7 +8,8 @@
 #include <utility>
 #include <variant>
 
-#include "llc/utils/config.h"
+#include <llc/scalar_types.hpp>
+#include <llc/utils/config.h>
 
 namespace llc {
 
@@ -54,9 +55,9 @@ public:
     using error_type = E;
     using cancel_type = C;
 
-    enum class State : std::uint8_t { OK,
-                                      ERR,
-                                      CANCELLED };
+    enum class State : u8 { OK,
+                            ERR,
+                            CANCELLED };
 
 private:
     template <typename X>

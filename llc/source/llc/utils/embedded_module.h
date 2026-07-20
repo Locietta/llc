@@ -2,7 +2,7 @@
 
 #include <slang-rhi.h>
 #include <llc/context.h>
-#include <llc/types.hpp>
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 

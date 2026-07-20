@@ -4,7 +4,8 @@
 #include <string_view>
 #include <utility>
 
-#include "llc/async/vocab/outcome.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/vocab/outcome.h>
 
 namespace llc {
 
@@ -15,9 +16,9 @@ public:
     constexpr Error(const Error &) noexcept = default;
     constexpr Error &operator=(const Error &) noexcept = default;
 
-    constexpr explicit Error(int code) noexcept : code(code) {}
+    constexpr explicit Error(i32 code) noexcept : code(code) {}
 
-    constexpr int value() const noexcept {
+    constexpr i32 value() const noexcept {
         return code;
     }
 
@@ -127,7 +128,7 @@ public:
     const static Error k_exec_format_error;
 
 private:
-    int code = 0;
+    i32 code = 0;
 };
 
 struct Cancellation {

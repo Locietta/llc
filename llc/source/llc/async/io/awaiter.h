@@ -6,18 +6,19 @@
 #include <optional>
 #include <utility>
 
-#include "llc/async/detail/libuv_helper.h"
-#include "../vocab/ringbuffer.h"
-#include "llc/async/io/stream.h"
-#include "llc/async/runtime/node.h"
-#include "llc/async/vocab/error.h"
-#include "llc/async/vocab/outcome.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/detail/libuv_helper.h>
+#include <llc/async/io/stream.h>
+#include <llc/async/runtime/node.h>
+#include <llc/async/vocab/error.h>
+#include <llc/async/vocab/outcome.h>
+#include <llc/async/vocab/ringbuffer.h>
 
 namespace llc::uv {
 
 template <typename StatusT>
 inline bool is_cancelled_status(StatusT status) noexcept {
-    return static_cast<long long>(status) == static_cast<long long>(UV_ECANCELED);
+    return static_cast<i64>(status) == static_cast<i64>(UV_ECANCELED);
 }
 
 struct SingleWaiter {
@@ -240,7 +241,7 @@ template <typename Stream>
 struct Acceptor<Stream>::Self : uv::handle<Acceptor<Stream>::Self, uv_stream_t>,
                                 StreamHandle,
                                 uv::QueuedDelivery<Result<Stream>> {
-    int pipe_ipc = 0;
+    i32 pipe_ipc = 0;
 };
 
 } // namespace llc

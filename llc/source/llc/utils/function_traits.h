@@ -2,6 +2,7 @@
 
 #include <tuple>
 #include <type_traits>
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 
@@ -31,12 +32,12 @@ using tuple_push_front_t = typename TuplePushFront<T, Tuple>::type;
 template <typename Fn>
 struct FunctionTraits;
 
-#define FUNCTION_TRAITS_SPECIALIZE(...)                            \
-    template <typename R, typename... Args>                        \
-    struct FunctionTraits<R(Args...) __VA_ARGS__> {                \
-        using return_type = R;                                     \
-        using args_type = std::tuple<Args...>;                     \
-        constexpr static std::size_t args_count = sizeof...(Args); \
+#define FUNCTION_TRAITS_SPECIALIZE(...)                      \
+    template <typename R, typename... Args>                  \
+    struct FunctionTraits<R(Args...) __VA_ARGS__> {          \
+        using return_type = R;                               \
+        using args_type = std::tuple<Args...>;               \
+        constexpr static usize args_count = sizeof...(Args); \
     };
 
 FUNCTION_TRAITS_SPECIALIZE()
@@ -57,7 +58,7 @@ template <typename T>
 using function_args_t = typename FunctionTraits<T>::args_type;
 
 template <typename T>
-constexpr std::size_t k_function_args_count = FunctionTraits<T>::args_count;
+constexpr usize k_function_args_count = FunctionTraits<T>::args_count;
 
 // traits for member pointers
 template <typename T>
@@ -105,6 +106,6 @@ template <typename Callable>
 using callable_return_t = typename CallableTraits<Callable>::return_type;
 
 template <typename Callable>
-constexpr std::size_t k_callable_args_count_v = std::tuple_size_v<callable_args_t<Callable>>;
+constexpr usize k_callable_args_count_v = std::tuple_size_v<callable_args_t<Callable>>;
 
 } // namespace llc

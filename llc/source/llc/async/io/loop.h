@@ -6,8 +6,9 @@
 #include <type_traits>
 #include <utility>
 
-#include "uv.h"
-#include "llc/utils/functional.h"
+#include <uv.h>
+#include <llc/scalar_types.hpp>
+#include <llc/utils/functional.h>
 
 namespace llc {
 
@@ -115,7 +116,7 @@ public:
 
     operator const uv_loop_t &() const noexcept;
 
-    int run();
+    i32 run();
 
     void stop();
 

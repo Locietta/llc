@@ -7,7 +7,7 @@
 #include <llc/async/runtime/task.h>
 #include <llc/async/vocab/error.h>
 #include <llc/async/vocab/owned.h>
-#include <llc/types.hpp>
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 
@@ -87,19 +87,19 @@ public:
     static Result<Udp> create(CreateOptions options = CreateOptions{},
                               EventLoop &loop = EventLoop::current());
 
-    static Result<Udp> open(int fd, EventLoop &loop = EventLoop::current());
+    static Result<Udp> open(i32 fd, EventLoop &loop = EventLoop::current());
 
-    Error bind(std::string_view host, int port, BindOptions options = BindOptions{});
+    Error bind(std::string_view host, i32 port, BindOptions options = BindOptions{});
 
-    Error connect(std::string_view host, int port);
+    Error connect(std::string_view host, i32 port);
 
     Error disconnect();
 
-    Task<void, Error> send(std::span<const char> data, std::string_view host, int port);
+    Task<void, Error> send(std::span<const char> data, std::string_view host, i32 port);
 
     Task<void, Error> send(std::span<const char> data);
 
-    Error try_send(std::span<const char> data, std::string_view host, int port);
+    Error try_send(std::span<const char> data, std::string_view host, i32 port);
 
     Error try_send(std::span<const char> data);
 
@@ -118,13 +118,13 @@ public:
 
     Error set_multicast_loop(bool on);
 
-    Error set_multicast_ttl(int ttl);
+    Error set_multicast_ttl(i32 ttl);
 
     Error set_multicast_interface(std::string_view interface_addr);
 
     Error set_broadcast(bool on);
 
-    Error set_ttl(int ttl);
+    Error set_ttl(i32 ttl);
 
     bool using_recvmmsg() const;
 

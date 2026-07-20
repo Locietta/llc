@@ -1,12 +1,13 @@
-#include "llc/async/io/fs.h"
+#include "fs.h"
 
 #include <cassert>
 #include <concepts>
 #include <utility>
 
-#include "awaiter.h"
-#include "llc/async/io/loop.h"
-#include "llc/async/vocab/error.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/io/awaiter.h>
+#include <llc/async/io/loop.h>
+#include <llc/async/vocab/error.h>
 
 namespace llc {
 
@@ -64,8 +65,8 @@ static fs::Dirent::Type map_dirent(uv_dirent_type_t t) {
     }
 }
 
-static Result<int> to_uv_copyfile_flags(const fs::CopyfileOptions &options) {
-    unsigned int out = 0;
+static Result<i32> to_uv_copyfile_flags(const fs::CopyfileOptions &options) {
+    u32 out = 0;
 #ifdef UV_FS_COPYFILE_EXCL
     if (options.excl) {
         out |= UV_FS_COPYFILE_EXCL;
@@ -93,7 +94,7 @@ static Result<int> to_uv_copyfile_flags(const fs::CopyfileOptions &options) {
         return outcome_error(Error::k_function_not_implemented);
     }
 #endif
-    return static_cast<int>(out);
+    return static_cast<i32>(out);
 }
 
 template <typename Result, typename Submit, fs_result_populator<Result> Populate>
@@ -133,7 +134,7 @@ static Task<Result, Error> run_fs(Submit submit,
 
 template <typename Submit>
 static Task<void, Error> run_void_fs(Submit submit, [[maybe_unused]] EventLoop &loop) {
-    if (auto res = co_await run_fs<int>(std::move(submit), [](uv_fs_t &) { return 0; }, loop); !res) {
+    if (auto res = co_await run_fs<i32>(std::move(submit), [](uv_fs_t &) { return 0; }, loop); !res) {
         co_await fail(res.error());
     }
 }
@@ -212,7 +213,7 @@ Task<void, Error> fs::unlink(std::string_view path, EventLoop &loop) {
         loop);
 }
 
-Task<void, Error> fs::mkdir(std::string_view path, int mode, EventLoop &loop) {
+Task<void, Error> fs::mkdir(std::string_view path, i32 mode, EventLoop &loop) {
     return run_void_fs(
         [p = std::string(path), mode, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_mkdir(loop, req, p.c_str(), mode, cb);
@@ -228,19 +229,19 @@ Task<void, Error> fs::rmdir(std::string_view path, EventLoop &loop) {
         loop);
 }
 
-Task<void, Error> fs::fsync(int fd, EventLoop &loop) {
+Task<void, Error> fs::fsync(i32 fd, EventLoop &loop) {
     return run_void_fs(
         [fd, &loop](uv_fs_t &req, uv_fs_cb cb) { return uv::fs_fsync(loop, req, fd, cb); },
         loop);
 }
 
-Task<void, Error> fs::fdatasync(int fd, EventLoop &loop) {
+Task<void, Error> fs::fdatasync(i32 fd, EventLoop &loop) {
     return run_void_fs(
         [fd, &loop](uv_fs_t &req, uv_fs_cb cb) { return uv::fs_fdatasync(loop, req, fd, cb); },
         loop);
 }
 
-Task<void, Error> fs::ftruncate(int fd, std::int64_t offset, EventLoop &loop) {
+Task<void, Error> fs::ftruncate(i32 fd, i64 offset, EventLoop &loop) {
     return run_void_fs(
         [fd, offset, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_ftruncate(loop, req, fd, offset, cb);
@@ -248,7 +249,7 @@ Task<void, Error> fs::ftruncate(int fd, std::int64_t offset, EventLoop &loop) {
         loop);
 }
 
-Task<void, Error> fs::access(std::string_view path, int mode, EventLoop &loop) {
+Task<void, Error> fs::access(std::string_view path, i32 mode, EventLoop &loop) {
     return run_void_fs(
         [p = std::string(path), mode, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_access(loop, req, p.c_str(), mode, cb);
@@ -256,7 +257,7 @@ Task<void, Error> fs::access(std::string_view path, int mode, EventLoop &loop) {
         loop);
 }
 
-Task<void, Error> fs::chmod(std::string_view path, int mode, EventLoop &loop) {
+Task<void, Error> fs::chmod(std::string_view path, i32 mode, EventLoop &loop) {
     return run_void_fs(
         [p = std::string(path), mode, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_chmod(loop, req, p.c_str(), mode, cb);
@@ -264,7 +265,7 @@ Task<void, Error> fs::chmod(std::string_view path, int mode, EventLoop &loop) {
         loop);
 }
 
-Task<void, Error> fs::utime(std::string_view path, double atime, double mtime, EventLoop &loop) {
+Task<void, Error> fs::utime(std::string_view path, f64 atime, f64 mtime, EventLoop &loop) {
     return run_void_fs(
         [p = std::string(path), atime, mtime, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_utime(loop, req, p.c_str(), atime, mtime, cb);
@@ -272,7 +273,7 @@ Task<void, Error> fs::utime(std::string_view path, double atime, double mtime, E
         loop);
 }
 
-Task<void, Error> fs::futime(int fd, double atime, double mtime, EventLoop &loop) {
+Task<void, Error> fs::futime(i32 fd, f64 atime, f64 mtime, EventLoop &loop) {
     return run_void_fs(
         [fd, atime, mtime, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_futime(loop, req, fd, atime, mtime, cb);
@@ -280,7 +281,7 @@ Task<void, Error> fs::futime(int fd, double atime, double mtime, EventLoop &loop
         loop);
 }
 
-Task<void, Error> fs::lutime(std::string_view path, double atime, double mtime, EventLoop &loop) {
+Task<void, Error> fs::lutime(std::string_view path, f64 atime, f64 mtime, EventLoop &loop) {
     return run_void_fs(
         [p = std::string(path), atime, mtime, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_lutime(loop, req, p.c_str(), atime, mtime, cb);
@@ -320,7 +321,7 @@ Task<void, Error> fs::link(std::string_view path, std::string_view new_path, Eve
 }
 
 Task<void, Error>
-fs::symlink(std::string_view path, std::string_view new_path, int flags, EventLoop &loop) {
+fs::symlink(std::string_view path, std::string_view new_path, i32 flags, EventLoop &loop) {
     return run_void_fs(
         [p = std::string(path), np = std::string(new_path), flags, &loop](uv_fs_t &req,
                                                                           uv_fs_cb cb) {
@@ -329,7 +330,7 @@ fs::symlink(std::string_view path, std::string_view new_path, int flags, EventLo
         loop);
 }
 
-Task<void, Error> fs::fchmod(int fd, int mode, EventLoop &loop) {
+Task<void, Error> fs::fchmod(i32 fd, i32 mode, EventLoop &loop) {
     return run_void_fs(
         [fd, mode, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_fchmod(loop, req, fd, mode, cb);
@@ -338,7 +339,7 @@ Task<void, Error> fs::fchmod(int fd, int mode, EventLoop &loop) {
 }
 
 Task<void, Error>
-fs::chown(std::string_view path, std::uint32_t uid, std::uint32_t gid, EventLoop &loop) {
+fs::chown(std::string_view path, u32 uid, u32 gid, EventLoop &loop) {
     return run_void_fs(
         [p = std::string(path), uid, gid, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_chown(loop,
@@ -351,7 +352,7 @@ fs::chown(std::string_view path, std::uint32_t uid, std::uint32_t gid, EventLoop
         loop);
 }
 
-Task<void, Error> fs::fchown(int fd, std::uint32_t uid, std::uint32_t gid, EventLoop &loop) {
+Task<void, Error> fs::fchown(i32 fd, u32 uid, u32 gid, EventLoop &loop) {
     return run_void_fs(
         [fd, uid, gid, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_fchown(loop,
@@ -365,7 +366,7 @@ Task<void, Error> fs::fchown(int fd, std::uint32_t uid, std::uint32_t gid, Event
 }
 
 Task<void, Error>
-fs::lchown(std::string_view path, std::uint32_t uid, std::uint32_t gid, EventLoop &loop) {
+fs::lchown(std::string_view path, u32 uid, u32 gid, EventLoop &loop) {
     return run_void_fs(
         [p = std::string(path), uid, gid, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_lchown(loop,
@@ -378,7 +379,7 @@ fs::lchown(std::string_view path, std::uint32_t uid, std::uint32_t gid, EventLoo
         loop);
 }
 
-Task<void, Error> fs::close(int fd, EventLoop &loop) {
+Task<void, Error> fs::close(i32 fd, EventLoop &loop) {
     return run_void_fs(
         [fd, &loop](uv_fs_t &req, uv_fs_cb cb) { return uv::fs_close(loop, req, fd, cb); },
         loop);
@@ -411,7 +412,7 @@ Task<fs::FileStats, Error> fs::stat(std::string_view path, EventLoop &loop) {
         loop);
 }
 
-Task<fs::FileStats, Error> fs::fstat(int fd, EventLoop &loop) {
+Task<fs::FileStats, Error> fs::fstat(i32 fd, EventLoop &loop) {
     return run_fs<fs::FileStats>(
         [fd, &loop](uv_fs_t &req, uv_fs_cb cb) { return uv::fs_fstat(loop, req, fd, cb); },
         [](uv_fs_t &req) { return to_file_stats(req.statbuf); },
@@ -446,21 +447,21 @@ Task<fs::MkstempResult, Error> fs::mkstemp(std::string_view tpl, EventLoop &loop
             return uv::fs_mkstemp(loop, req, t.c_str(), cb);
         },
         [](uv_fs_t &req) -> fs::MkstempResult {
-            return {static_cast<int>(req.result), req.path ? req.path : ""};
+            return {static_cast<i32>(req.result), req.path ? req.path : ""};
         },
         loop);
 }
 
-Task<std::int64_t, Error> fs::sendfile(int out_fd,
-                                       int in_fd,
-                                       std::int64_t in_offset,
-                                       std::size_t length,
-                                       EventLoop &loop) {
-    return run_fs<std::int64_t>(
+Task<i64, Error> fs::sendfile(i32 out_fd,
+                              i32 in_fd,
+                              i64 in_offset,
+                              usize length,
+                              EventLoop &loop) {
+    return run_fs<i64>(
         [out_fd, in_fd, in_offset, length, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_sendfile(loop, req, out_fd, in_fd, in_offset, length, cb);
         },
-        [](uv_fs_t &req) -> std::int64_t { return req.result; },
+        [](uv_fs_t &req) -> i64 { return req.result; },
         loop);
 }
 
@@ -522,38 +523,38 @@ Task<fs::FsStats, Error> fs::statfs(std::string_view path, EventLoop &loop) {
         loop);
 }
 
-Task<int, Error> fs::open(std::string_view path, int flags, int mode, EventLoop &loop) {
-    return run_fs<int>(
+Task<i32, Error> fs::open(std::string_view path, i32 flags, i32 mode, EventLoop &loop) {
+    return run_fs<i32>(
         [p = std::string(path), flags, mode, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_open(loop, req, p.c_str(), flags, mode, cb);
         },
-        [](uv_fs_t &req) -> int { return static_cast<int>(req.result); },
+        [](uv_fs_t &req) -> i32 { return static_cast<i32>(req.result); },
         loop);
 }
 
-Task<std::size_t, Error>
-fs::read(int fd, std::span<char> buf, std::int64_t offset, EventLoop &loop) {
+Task<usize, Error>
+fs::read(i32 fd, std::span<char> buf, i64 offset, EventLoop &loop) {
     auto storage =
-        std::make_shared<uv_buf_t>(uv_buf_init(buf.data(), static_cast<unsigned int>(buf.size())));
+        std::make_shared<uv_buf_t>(uv_buf_init(buf.data(), static_cast<u32>(buf.size())));
 
-    return run_fs<std::size_t>(
+    return run_fs<usize>(
         [fd, storage, offset, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_read(loop, req, fd, storage.get(), 1, offset, cb);
         },
-        [](uv_fs_t &req) -> std::size_t { return static_cast<std::size_t>(req.result); },
+        [](uv_fs_t &req) -> usize { return static_cast<usize>(req.result); },
         loop);
 }
 
-Task<std::size_t, Error>
-fs::write(int fd, std::span<const char> buf, std::int64_t offset, EventLoop &loop) {
+Task<usize, Error>
+fs::write(i32 fd, std::span<const char> buf, i64 offset, EventLoop &loop) {
     auto storage = std::make_shared<uv_buf_t>(
-        uv_buf_init(const_cast<char *>(buf.data()), static_cast<unsigned int>(buf.size())));
+        uv_buf_init(const_cast<char *>(buf.data()), static_cast<u32>(buf.size())));
 
-    return run_fs<std::size_t>(
+    return run_fs<usize>(
         [fd, storage, offset, &loop](uv_fs_t &req, uv_fs_cb cb) {
             return uv::fs_write(loop, req, fd, storage.get(), 1, offset, cb);
         },
-        [](uv_fs_t &req) -> std::size_t { return static_cast<std::size_t>(req.result); },
+        [](uv_fs_t &req) -> usize { return static_cast<usize>(req.result); },
         loop);
 }
 
@@ -609,7 +610,7 @@ Task<std::vector<fs::Dirent>, Error> fs::readdir(fs::DirHandle &dir, EventLoop &
         co_await fail(Error::k_invalid_argument);
     }
 
-    constexpr std::size_t entry_count = 64;
+    constexpr usize entry_count = 64;
     auto entries_storage = std::make_shared<std::vector<uv_dirent_t>>(entry_count);
     dir_ptr->dirents = entries_storage->data();
     dir_ptr->nentries = entries_storage->size();
@@ -625,7 +626,7 @@ Task<std::vector<fs::Dirent>, Error> fs::readdir(fs::DirHandle &dir, EventLoop &
                 return out;
             }
 
-            for (unsigned i = 0; i < req.result; ++i) {
+            for (u32 i = 0; i < req.result; ++i) {
                 auto &ent = d->dirents[i];
                 fs::Dirent de;
                 if (ent.name) {
@@ -642,14 +643,14 @@ Task<std::vector<fs::Dirent>, Error> fs::readdir(fs::DirHandle &dir, EventLoop &
 template <typename Fn, typename Map>
 static auto run_sync_fs(Fn &&fn, Map &&map) {
     uv_fs_t req{};
-    int r = fn(req);
+    i32 r = fn(req);
     uv::fs_req_cleanup(req);
     return map(r);
 }
 
 template <typename Fn>
 static Error run_sync_fs(Fn &&fn) {
-    return run_sync_fs(std::forward<Fn>(fn), [](int r) -> Error {
+    return run_sync_fs(std::forward<Fn>(fn), [](i32 r) -> Error {
         if (r < 0) {
             return uv::status_to_error(r);
         }
@@ -657,10 +658,10 @@ static Error run_sync_fs(Fn &&fn) {
     });
 }
 
-Result<int> fs::sync::open(std::string_view path, int flags, int mode) {
+Result<i32> fs::sync::open(std::string_view path, i32 flags, i32 mode) {
     std::string p(path);
     return run_sync_fs([&](uv_fs_t &req) { return uv::fs_open_sync(req, p.c_str(), flags, mode); },
-                       [](int r) -> Result<int> {
+                       [](i32 r) -> Result<i32> {
                            if (r < 0) {
                                return outcome_error(uv::status_to_error(r));
                            }
@@ -668,30 +669,30 @@ Result<int> fs::sync::open(std::string_view path, int flags, int mode) {
                        });
 }
 
-Result<std::size_t> fs::sync::read(int fd, std::span<char> buf, std::int64_t offset) {
-    uv_buf_t uv_buf = uv_buf_init(buf.data(), static_cast<unsigned int>(buf.size()));
+Result<usize> fs::sync::read(i32 fd, std::span<char> buf, i64 offset) {
+    uv_buf_t uv_buf = uv_buf_init(buf.data(), static_cast<u32>(buf.size()));
     return run_sync_fs([&](uv_fs_t &req) { return uv::fs_read_sync(req, fd, &uv_buf, 1, offset); },
-                       [](int r) -> Result<std::size_t> {
+                       [](i32 r) -> Result<usize> {
                            if (r < 0) {
                                return outcome_error(uv::status_to_error(r));
                            }
-                           return static_cast<std::size_t>(r);
+                           return static_cast<usize>(r);
                        });
 }
 
-Result<std::size_t> fs::sync::write(int fd, std::span<const char> buf, std::int64_t offset) {
+Result<usize> fs::sync::write(i32 fd, std::span<const char> buf, i64 offset) {
     uv_buf_t uv_buf =
-        uv_buf_init(const_cast<char *>(buf.data()), static_cast<unsigned int>(buf.size()));
+        uv_buf_init(const_cast<char *>(buf.data()), static_cast<u32>(buf.size()));
     return run_sync_fs([&](uv_fs_t &req) { return uv::fs_write_sync(req, fd, &uv_buf, 1, offset); },
-                       [](int r) -> Result<std::size_t> {
+                       [](i32 r) -> Result<usize> {
                            if (r < 0) {
                                return outcome_error(uv::status_to_error(r));
                            }
-                           return static_cast<std::size_t>(r);
+                           return static_cast<usize>(r);
                        });
 }
 
-Error fs::sync::close(int fd) {
+Error fs::sync::close(i32 fd) {
     return run_sync_fs([&](uv_fs_t &req) { return uv::fs_close_sync(req, fd); });
 }
 

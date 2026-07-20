@@ -1,9 +1,12 @@
-#include "awaiter.h"
-#include "llc/async/io/loop.h"
+#include "stream.h"
+
+#include <llc/scalar_types.hpp>
+#include <llc/async/io/awaiter.h>
+#include <llc/async/io/loop.h>
 
 namespace llc {
 
-Result<Console> Console::open(int fd, Console::Options opts, EventLoop &loop) {
+Result<Console> Console::open(i32 fd, Console::Options opts, EventLoop &loop) {
     auto self = Self::make();
     if (auto err = uv::tty_init(loop, self->tty, fd, opts.readable)) {
         return outcome_error(err);

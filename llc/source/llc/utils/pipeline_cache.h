@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <slang-rhi.h>
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 
@@ -25,7 +26,7 @@ struct PipelineCache final {
     }
 };
 
-/// Thread-safe pipeline lookup with double-checked locking.
+/// Thread-safe pipeline lookup with f64-checked locking.
 /// `create_fn()` is called outside the lock if no cache hit.
 template <typename CreateFn>
 Slang::ComPtr<rhi::IComputePipeline> get_cached_pipeline(PipelineCache &cache, std::string_view key, CreateFn create_fn) {

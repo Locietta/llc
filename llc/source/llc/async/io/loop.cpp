@@ -1,4 +1,4 @@
-#include "llc/async/io/loop.h"
+#include "loop.h"
 
 #include <atomic>
 #include <cassert>
@@ -6,10 +6,11 @@
 #include <mutex>
 #include <vector>
 
-#include "llc/async/detail/libuv_helper.h"
-#include "llc/utils/functional.h"
-#include "llc/async/io/watcher.h"
-#include "llc/async/runtime/node.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/detail/libuv_helper.h>
+#include <llc/utils/functional.h>
+#include <llc/async/io/watcher.h>
+#include <llc/async/runtime/node.h>
 
 namespace llc {
 
@@ -17,7 +18,7 @@ struct Relay::Self {
     uv_async_t async = {};
     std::mutex mutex;
     std::vector<Function<void()>> queue;
-    std::atomic<int> count{0};
+    std::atomic<i32> count{0};
 };
 
 struct EventLoop::Self : Relay::Self {
@@ -291,10 +292,10 @@ EventLoop::operator const uv_loop_t &() const noexcept {
     return self->loop;
 }
 
-int EventLoop::run() {
+i32 EventLoop::run() {
     auto previous = current_loop;
     current_loop = this;
-    const int result = uv::run(self->loop, UV_RUN_DEFAULT);
+    const i32 result = uv::run(self->loop, UV_RUN_DEFAULT);
     current_loop = previous;
     return result;
 }

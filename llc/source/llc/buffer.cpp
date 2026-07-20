@@ -1,4 +1,5 @@
 #include "buffer.h"
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 

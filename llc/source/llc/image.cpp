@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 
@@ -208,11 +209,11 @@ bool write_image_png(const std::filesystem::path &path, const Image &image) {
 
     return stbi_write_png(
                path.string().c_str(),
-               static_cast<int>(image.width),
-               static_cast<int>(image.height),
+               static_cast<i32>(image.width),
+               static_cast<i32>(image.height),
                4,
                image.data(),
-               static_cast<int>(image.row_pitch)) != 0;
+               static_cast<i32>(image.row_pitch)) != 0;
 }
 
 } // namespace llc

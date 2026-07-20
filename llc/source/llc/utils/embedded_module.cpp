@@ -1,6 +1,7 @@
 #include "embedded_module.h"
 
 #include <span>
+#include <llc/scalar_types.hpp>
 #include <llc/blob.h>
 
 namespace llc {

@@ -5,6 +5,7 @@
 #include <new>
 #include <type_traits>
 #include <utility>
+#include <llc/scalar_types.hpp>
 
 namespace llc {
 
@@ -157,8 +158,8 @@ public:
 
     using Deleter = void(Function *);
 
-    constexpr static size_t k_sbo_size = 24;
-    constexpr static size_t k_sbo_align = alignof(std::max_align_t);
+    constexpr static usize k_sbo_size = 24;
+    constexpr static usize k_sbo_align = alignof(std::max_align_t);
 
     using Storage = union {
         alignas(k_sbo_align) std::byte sbo[k_sbo_size];
@@ -349,8 +350,8 @@ public:
 
     using Deleter = void(Function *);
 
-    constexpr static size_t k_sbo_size = 24;
-    constexpr static size_t k_sbo_align = alignof(std::max_align_t);
+    constexpr static usize k_sbo_size = 24;
+    constexpr static usize k_sbo_align = alignof(std::max_align_t);
 
     using Storage = union {
         alignas(k_sbo_align) std::byte sbo[k_sbo_size];

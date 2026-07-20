@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include <llc/scalar_types.hpp>
 #include <llc/utils/small_vector.h>
 #include <llc/utils/string_ref.h>
 
@@ -14,7 +15,7 @@ namespace llc {
 
 /// A SmallVector<char> with string-like convenience methods.
 /// All string operations delegate to StringRef.
-template <unsigned InlineCapacity>
+template <u32 InlineCapacity>
 class SmallString : public SmallVector<char, InlineCapacity> {
     using base = SmallVector<char, InlineCapacity>;
 
@@ -33,8 +34,8 @@ public:
     /// Adopt a pre-allocated buffer as a SmallString.
     /// The buffer must have been allocated with mem::allocate<char>.
     [[nodiscard]] constexpr static SmallString from_raw_parts(char *data,
-                                                              std::size_t count,
-                                                              std::size_t capacity) {
+                                                              usize count,
+                                                              usize capacity) {
         SmallString result;
         if (data != nullptr && capacity > 0) {
             result.adopt_allocation(data, count, capacity);
@@ -68,8 +69,8 @@ public:
 
     /// Append from a list of string_views.
     constexpr void append(std::initializer_list<std::string_view> refs) {
-        std::size_t current_size = this->size();
-        std::size_t size_needed = current_size;
+        usize current_size = this->size();
+        usize size_needed = current_size;
         for (const std::string_view &ref : refs) {
             size_needed += ref.size();
         }

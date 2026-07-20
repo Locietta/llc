@@ -5,9 +5,10 @@
 #include <string>
 #include <string_view>
 
-#include "llc/async/runtime/task.h"
-#include "llc/async/vocab/error.h"
-#include "llc/async/vocab/owned.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/runtime/task.h>
+#include <llc/async/vocab/error.h>
+#include <llc/async/vocab/owned.h>
 
 namespace llc {
 
@@ -25,7 +26,7 @@ enum class HandleType { UNKNOWN,
                         UDP };
 
 /// Guess the handle type for a file descriptor.
-HandleType guess_handle(int fd);
+HandleType guess_handle(i32 fd);
 
 /// Base Stream wrapper for PIPE, TCP, and Console handles.
 class Stream {
@@ -53,7 +54,7 @@ public:
     Task<std::string, Error> read();
 
     /// Read up to dst.size() bytes into dst; returns bytes read, 0 on EOF, or an Error.
-    Task<std::size_t, Error> read_some(std::span<char> dst);
+    Task<usize, Error> read_some(std::span<char> dst);
 
     using Chunk = std::span<const char>;
 
@@ -61,7 +62,7 @@ public:
     Task<Chunk, Error> read_chunk();
 
     /// Consume bytes from the internal buffer.
-    void consume(std::size_t n);
+    void consume(usize n);
 
     /// Stop active reads and abort any pending read waiter.
     void stop();
@@ -70,7 +71,7 @@ public:
     Task<void, Error> write(std::span<const char> data);
 
     /// Try a non-blocking write; returns bytes written or Error.
-    Result<std::size_t> try_write(std::span<const char> data);
+    Result<usize> try_write(std::span<const char> data);
 
     /// Check whether the Stream is readable.
     bool readable() const noexcept;
@@ -135,13 +136,13 @@ public:
         bool no_truncate = false;
 
         /// Listen backlog size.
-        int backlog = 128;
+        i32 backlog = 128;
 
-        constexpr Options(bool ipc = false, bool no_truncate = false, int backlog = 128) : ipc(ipc), no_truncate(no_truncate), backlog(backlog) {}
+        constexpr Options(bool ipc = false, bool no_truncate = false, i32 backlog = 128) : ipc(ipc), no_truncate(no_truncate), backlog(backlog) {}
     };
 
     /// Wrap an existing file descriptor.
-    static Result<Pipe> open(int fd,
+    static Result<Pipe> open(i32 fd,
                              Options opts = Options(),
                              EventLoop &loop = EventLoop::current());
 
@@ -180,27 +181,27 @@ public:
         bool reuse_port = false;
 
         /// Listen backlog size.
-        int backlog = 128;
+        i32 backlog = 128;
 
-        constexpr Options(bool ipv6_only = false, bool reuse_port = false, int backlog = 128) : ipv6_only(ipv6_only), reuse_port(reuse_port), backlog(backlog) {}
+        constexpr Options(bool ipv6_only = false, bool reuse_port = false, i32 backlog = 128) : ipv6_only(ipv6_only), reuse_port(reuse_port), backlog(backlog) {}
     };
 
     /// Wrap an existing socket descriptor.
-    static Result<Tcp> open(int fd, EventLoop &loop = EventLoop::current());
+    static Result<Tcp> open(i32 fd, EventLoop &loop = EventLoop::current());
 
     /// Connect to a TCP host/port.
     static Task<Tcp, Error> connect(std::string_view host,
-                                    int port,
+                                    i32 port,
                                     EventLoop &loop = EventLoop::current());
 
     /// Listen on a TCP host/port.
     static Result<Acceptor> listen(std::string_view host,
-                                   int port,
+                                   i32 port,
                                    Options opts = Options(),
                                    EventLoop &loop = EventLoop::current());
 
     /// Query the local address/port of a listening Acceptor.
-    static Result<int> local_port(Acceptor &acc);
+    static Result<i32> local_port(Acceptor &acc);
 };
 
 /// TTY/Console wrapper.
@@ -210,10 +211,10 @@ public:
 
     struct Winsize {
         /// Console width in columns.
-        int width = 0;
+        i32 width = 0;
 
         /// Console height in rows.
-        int height = 0;
+        i32 height = 0;
     };
 
     enum class Mode { NORMAL,
@@ -232,7 +233,7 @@ public:
     };
 
     /// Wrap a Console file descriptor.
-    static Result<Console> open(int fd,
+    static Result<Console> open(i32 fd,
                                 Options opts = Options(),
                                 EventLoop &loop = EventLoop::current());
 

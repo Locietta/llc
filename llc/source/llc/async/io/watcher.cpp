@@ -1,44 +1,45 @@
-#include "llc/async/io/watcher.h"
+#include "watcher.h"
 
 #include <cassert>
 #include <chrono>
 #include <type_traits>
 
-#include "awaiter.h"
-#include "llc/async/io/loop.h"
-#include "llc/async/vocab/error.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/io/awaiter.h>
+#include <llc/async/io/loop.h>
+#include <llc/async/vocab/error.h>
 
 namespace llc {
 
 struct Timer::Self : uv::handle<Timer::Self, uv_timer_t> {
     uv_timer_t handle{};
     IoOp *waiter = nullptr;
-    int pending = 0;
+    i32 pending = 0;
 };
 
 struct Idle::Self : uv::handle<Idle::Self, uv_idle_t> {
     uv_idle_t handle{};
     IoOp *waiter = nullptr;
-    int pending = 0;
+    i32 pending = 0;
 };
 
 struct Prepare::Self : uv::handle<Prepare::Self, uv_prepare_t> {
     uv_prepare_t handle{};
     IoOp *waiter = nullptr;
-    int pending = 0;
+    i32 pending = 0;
 };
 
 struct Check::Self : uv::handle<Check::Self, uv_check_t> {
     uv_check_t handle{};
     IoOp *waiter = nullptr;
-    int pending = 0;
+    i32 pending = 0;
 };
 
 struct Signal::Self : uv::handle<Signal::Self, uv_signal_t> {
     uv_signal_t handle{};
     IoOp *waiter = nullptr;
     Error *active = nullptr;
-    int pending = 0;
+    i32 pending = 0;
 };
 
 namespace {
@@ -218,8 +219,8 @@ void Timer::start(std::chrono::milliseconds timeout, std::chrono::milliseconds r
     uv::timer_start(
         handle,
         [](uv_timer_t *h) { timer_await::on_fire(h); },
-        static_cast<std::uint64_t>(timeout.count()),
-        static_cast<std::uint64_t>(repeat.count()));
+        static_cast<u64>(timeout.count()),
+        static_cast<u64>(repeat.count()));
 }
 
 void Timer::stop() {
@@ -258,7 +259,7 @@ Result<Signal> Signal::create(EventLoop &loop) {
     return Signal(std::move(self));
 }
 
-Error Signal::start(int signum) {
+Error Signal::start(i32 signum) {
     if (!self) {
         return Error::k_invalid_argument;
     }
@@ -266,7 +267,7 @@ Error Signal::start(int signum) {
     auto &handle = self->handle;
     if (auto err = uv::signal_start(
             handle,
-            [](uv_signal_t *h, int) { SignalAwait::on_fire(h); },
+            [](uv_signal_t *h, i32) { SignalAwait::on_fire(h); },
             signum);
         err) {
         return err;

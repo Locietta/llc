@@ -5,10 +5,11 @@
 #include <string>
 #include <vector>
 
-#include "llc/async/io/stream.h"
-#include "llc/async/runtime/task.h"
-#include "llc/async/vocab/error.h"
-#include "llc/async/vocab/owned.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/io/stream.h>
+#include <llc/async/runtime/task.h>
+#include <llc/async/vocab/error.h>
+#include <llc/async/vocab/owned.h>
 
 namespace llc {
 
@@ -31,10 +32,10 @@ public:
 
     struct ExitStatus {
         /// Exit code reported by the child.
-        int64_t status;
+        i64 status;
 
         /// Terminating Signal number if signalled, 0 otherwise.
-        int term_signal;
+        i32 term_signal;
     };
 
     struct Stdio {
@@ -49,7 +50,7 @@ public:
         Kind type = Kind::INHERIT_STREAM;
 
         /// Descriptor to inherit when type == fd.
-        int descriptor = -1;
+        i32 descriptor = -1;
 
         /// Child-readable flag when type == Pipe.
         bool readable = false; // from the child's perspective
@@ -64,7 +65,7 @@ public:
         static Stdio ignore();
 
         /// Duplicate the given descriptor into the child.
-        static Stdio from_fd(int fd);
+        static Stdio from_fd(i32 fd);
 
         /// Create a Pipe; flags are from the child's perspective.
         static Stdio pipe(bool readable, bool writable);
@@ -123,10 +124,10 @@ public:
     Task<WaitResult> wait();
 
     /// Retrieve OS pid for the Process; -1 if not started.
-    int pid() const noexcept;
+    i32 pid() const noexcept;
 
     /// Send a Signal to the Process.
-    Error kill(int signum);
+    Error kill(i32 signum);
 
 private:
     explicit Process(UniqueHandle<Self> self) noexcept;

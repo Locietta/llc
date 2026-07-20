@@ -6,6 +6,7 @@
 
 #include <slang-rhi/shader-cursor.h>
 
+#include <llc/scalar_types.hpp>
 #include <llc/blob.h>
 #include <llc/buffer.h>
 #include <llc/math.h>
@@ -14,8 +15,8 @@
 #include <llc/utils/embedded_module.h>
 #include <llc/utils/pipeline_cache.h>
 
-extern "C" const unsigned char _binary_reduce_slang_module_start[]; // NOLINT(readability-identifier-naming)
-extern "C" const unsigned char _binary_reduce_slang_module_end[];   // NOLINT(readability-identifier-naming)
+extern "C" const llc::u8 _binary_reduce_slang_module_start[]; // NOLINT(readability-identifier-naming)
+extern "C" const llc::u8 _binary_reduce_slang_module_end[];   // NOLINT(readability-identifier-naming)
 
 namespace llc::pp {
 

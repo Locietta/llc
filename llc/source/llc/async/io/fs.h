@@ -8,9 +8,10 @@
 #include <string_view>
 #include <vector>
 
-#include "llc/async/runtime/task.h"
-#include "llc/async/vocab/error.h"
-#include "llc/async/vocab/owned.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/runtime/task.h>
+#include <llc/async/vocab/error.h>
+#include <llc/async/vocab/owned.h>
 
 namespace llc {
 
@@ -22,40 +23,40 @@ using FileTime = std::chrono::time_point<std::chrono::system_clock, std::chrono:
 
 struct FileStats {
     /// Device ID containing the file.
-    std::uint64_t dev = 0;
+    u64 dev = 0;
 
     /// File type and mode (permissions).
-    std::uint64_t mode = 0;
+    u64 mode = 0;
 
     /// Number of hard links.
-    std::uint64_t nlink = 0;
+    u64 nlink = 0;
 
     /// User ID of owner.
-    std::uint64_t uid = 0;
+    u64 uid = 0;
 
     /// Group ID of owner.
-    std::uint64_t gid = 0;
+    u64 gid = 0;
 
     /// Device ID (if special file).
-    std::uint64_t rdev = 0;
+    u64 rdev = 0;
 
     /// Inode number.
-    std::uint64_t ino = 0;
+    u64 ino = 0;
 
     /// Total size in bytes.
-    std::uint64_t size = 0;
+    u64 size = 0;
 
     /// Preferred I/O block size.
-    std::uint64_t blksize = 0;
+    u64 blksize = 0;
 
     /// Number of 512-byte blocks allocated.
-    std::uint64_t blocks = 0;
+    u64 blocks = 0;
 
     /// File flags (BSD-specific).
-    std::uint64_t flags = 0;
+    u64 flags = 0;
 
     /// File generation number (BSD-specific).
-    std::uint64_t gen = 0;
+    u64 gen = 0;
 
     /// Last access time.
     FileTime atime;
@@ -71,7 +72,7 @@ struct FileStats {
 };
 
 struct MkstempResult {
-    int fd = -1;
+    i32 fd = -1;
     std::string path;
 };
 
@@ -126,7 +127,7 @@ private:
 Task<void, Error> unlink(std::string_view path, EventLoop &loop = EventLoop::current());
 
 /// Create a directory with the given permissions.
-Task<void, Error> mkdir(std::string_view path, int mode, EventLoop &loop = EventLoop::current());
+Task<void, Error> mkdir(std::string_view path, i32 mode, EventLoop &loop = EventLoop::current());
 
 /// Get file status (metadata) by path.
 Task<FileStats, Error> stat(std::string_view path, EventLoop &loop = EventLoop::current());
@@ -160,7 +161,7 @@ Task<std::vector<Dirent>, Error> readdir(DirHandle &dir, EventLoop &loop = Event
 Task<void, Error> closedir(DirHandle &dir, EventLoop &loop = EventLoop::current());
 
 /// Get file status by file descriptor.
-Task<FileStats, Error> fstat(int fd, EventLoop &loop = EventLoop::current());
+Task<FileStats, Error> fstat(i32 fd, EventLoop &loop = EventLoop::current());
 
 /// Get file status by path, without following symlinks.
 Task<FileStats, Error> lstat(std::string_view path, EventLoop &loop = EventLoop::current());
@@ -171,41 +172,41 @@ Task<void, Error> rename(std::string_view path,
                          EventLoop &loop = EventLoop::current());
 
 /// Flush file data and metadata to disk.
-Task<void, Error> fsync(int fd, EventLoop &loop = EventLoop::current());
+Task<void, Error> fsync(i32 fd, EventLoop &loop = EventLoop::current());
 
 /// Flush file data to disk (metadata may not be flushed).
-Task<void, Error> fdatasync(int fd, EventLoop &loop = EventLoop::current());
+Task<void, Error> fdatasync(i32 fd, EventLoop &loop = EventLoop::current());
 
 /// Truncate a file to the specified length.
-Task<void, Error> ftruncate(int fd, std::int64_t offset, EventLoop &loop = EventLoop::current());
+Task<void, Error> ftruncate(i32 fd, i64 offset, EventLoop &loop = EventLoop::current());
 
 /// Zero-copy transfer data between file descriptors.
-Task<std::int64_t, Error> sendfile(int out_fd,
-                                   int in_fd,
-                                   std::int64_t in_offset,
-                                   std::size_t length,
-                                   EventLoop &loop = EventLoop::current());
+Task<i64, Error> sendfile(i32 out_fd,
+                          i32 in_fd,
+                          i64 in_offset,
+                          usize length,
+                          EventLoop &loop = EventLoop::current());
 
 /// Check user permissions for a file (mode: F_OK, R_OK, W_OK, X_OK).
-Task<void, Error> access(std::string_view path, int mode, EventLoop &loop = EventLoop::current());
+Task<void, Error> access(std::string_view path, i32 mode, EventLoop &loop = EventLoop::current());
 
 /// Change file permissions by path.
-Task<void, Error> chmod(std::string_view path, int mode, EventLoop &loop = EventLoop::current());
+Task<void, Error> chmod(std::string_view path, i32 mode, EventLoop &loop = EventLoop::current());
 
 /// Change file access and modification times by path.
 Task<void, Error> utime(std::string_view path,
-                        double atime,
-                        double mtime,
+                        f64 atime,
+                        f64 mtime,
                         EventLoop &loop = EventLoop::current());
 
 /// Change file access and modification times by file descriptor.
 Task<void, Error>
-futime(int fd, double atime, double mtime, EventLoop &loop = EventLoop::current());
+futime(i32 fd, f64 atime, f64 mtime, EventLoop &loop = EventLoop::current());
 
 /// Change file access and modification times by path, without following symlinks.
 Task<void, Error> lutime(std::string_view path,
-                         double atime,
-                         double mtime,
+                         f64 atime,
+                         f64 mtime,
                          EventLoop &loop = EventLoop::current());
 
 /// Create a hard link.
@@ -216,7 +217,7 @@ Task<void, Error> link(std::string_view path,
 /// Create a symbolic link.
 Task<void, Error> symlink(std::string_view path,
                           std::string_view new_path,
-                          int flags = 0,
+                          i32 flags = 0,
                           EventLoop &loop = EventLoop::current());
 
 /// Read the target of a symbolic link.
@@ -226,86 +227,86 @@ Task<std::string, Error> readlink(std::string_view path, EventLoop &loop = Event
 Task<std::string, Error> realpath(std::string_view path, EventLoop &loop = EventLoop::current());
 
 /// Change file permissions by file descriptor.
-Task<void, Error> fchmod(int fd, int mode, EventLoop &loop = EventLoop::current());
+Task<void, Error> fchmod(i32 fd, i32 mode, EventLoop &loop = EventLoop::current());
 
 /// Change file owner and group by path.
 Task<void, Error> chown(std::string_view path,
-                        std::uint32_t uid,
-                        std::uint32_t gid,
+                        u32 uid,
+                        u32 gid,
                         EventLoop &loop = EventLoop::current());
 
 /// Change file owner and group by file descriptor.
 Task<void, Error>
-fchown(int fd, std::uint32_t uid, std::uint32_t gid, EventLoop &loop = EventLoop::current());
+fchown(i32 fd, u32 uid, u32 gid, EventLoop &loop = EventLoop::current());
 
 /// Change file owner and group by path, without following symlinks.
 Task<void, Error> lchown(std::string_view path,
-                         std::uint32_t uid,
-                         std::uint32_t gid,
+                         u32 uid,
+                         u32 gid,
                          EventLoop &loop = EventLoop::current());
 
 struct FsStats {
     /// Filesystem type identifier.
-    std::uint64_t type = 0;
+    u64 type = 0;
 
     /// Fundamental block size in bytes.
-    std::uint64_t bsize = 0;
+    u64 bsize = 0;
 
     /// Total number of blocks on the filesystem.
-    std::uint64_t blocks = 0;
+    u64 blocks = 0;
 
     /// Number of free blocks.
-    std::uint64_t bfree = 0;
+    u64 bfree = 0;
 
     /// Number of free blocks available to unprivileged users.
-    std::uint64_t bavail = 0;
+    u64 bavail = 0;
 
     /// Total number of file nodes (inodes).
-    std::uint64_t files = 0;
+    u64 files = 0;
 
     /// Number of free file nodes.
-    std::uint64_t ffree = 0;
+    u64 ffree = 0;
 
     /// Fragment size in bytes.
-    std::uint64_t frsize = 0;
+    u64 frsize = 0;
 };
 
 /// Get filesystem statistics (total/free space, inode counts, etc.).
 Task<FsStats, Error> statfs(std::string_view path, EventLoop &loop = EventLoop::current());
 
 /// Open a file asynchronously. Returns the file descriptor on success.
-Task<int, Error>
-open(std::string_view path, int flags, int mode = 0, EventLoop &loop = EventLoop::current());
+Task<i32, Error>
+open(std::string_view path, i32 flags, i32 mode = 0, EventLoop &loop = EventLoop::current());
 
 /// Read from a file descriptor into a buffer. offset = -1 uses current position.
-Task<std::size_t, Error> read(int fd,
-                              std::span<char> buf,
-                              std::int64_t offset = -1,
-                              EventLoop &loop = EventLoop::current());
+Task<usize, Error> read(i32 fd,
+                        std::span<char> buf,
+                        i64 offset = -1,
+                        EventLoop &loop = EventLoop::current());
 
 /// Write a buffer to a file descriptor. offset = -1 uses current position.
-Task<std::size_t, Error> write(int fd,
-                               std::span<const char> buf,
-                               std::int64_t offset = -1,
-                               EventLoop &loop = EventLoop::current());
+Task<usize, Error> write(i32 fd,
+                         std::span<const char> buf,
+                         i64 offset = -1,
+                         EventLoop &loop = EventLoop::current());
 
 /// Close a file descriptor asynchronously.
-Task<void, Error> close(int fd, EventLoop &loop = EventLoop::current());
+Task<void, Error> close(i32 fd, EventLoop &loop = EventLoop::current());
 
 namespace sync {
 
 /// Open a file. Returns the fd on success.
 /// flags: UV_FS_O_RDONLY, UV_FS_O_WRONLY, UV_FS_O_RDWR, etc.
-Result<int> open(std::string_view path, int flags, int mode = 0);
+Result<i32> open(std::string_view path, i32 flags, i32 mode = 0);
 
 /// Read up to buf.size() bytes from fd at offset (-1 = current position).
-Result<std::size_t> read(int fd, std::span<char> buf, std::int64_t offset = -1);
+Result<usize> read(i32 fd, std::span<char> buf, i64 offset = -1);
 
 /// Write buf to fd at offset (-1 = current position).
-Result<std::size_t> write(int fd, std::span<const char> buf, std::int64_t offset = -1);
+Result<usize> write(i32 fd, std::span<const char> buf, i64 offset = -1);
 
 /// Close a file descriptor.
-Error close(int fd);
+Error close(i32 fd);
 
 /// Convenience: read entire file into a string.
 Result<std::string> read_to_string(std::string_view path);

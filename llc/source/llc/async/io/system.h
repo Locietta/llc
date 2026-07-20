@@ -5,26 +5,27 @@
 #include <string>
 #include <vector>
 
-#include "llc/async/vocab/error.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/vocab/error.h>
 
 namespace llc::sys {
 
 /// System memory information (all values in bytes).
 struct MemoryInfo {
     /// Total physical memory installed on the system.
-    std::uint64_t total = 0;
+    u64 total = 0;
 
     /// Physical memory not currently in use.
-    std::uint64_t free = 0;
+    u64 free = 0;
 
     /// Memory available to the Process, accounting for cgroup/container
     /// limits.  Falls back to free memory when no limit is set.
-    std::uint64_t available = 0;
+    u64 available = 0;
 
     /// Memory limit imposed by the OS (cgroups on Linux).  Zero means
     /// unknown/no constraint; UINT64_MAX means a constraint mechanism exists
     /// but no limit is set.
-    std::uint64_t constrained = 0;
+    u64 constrained = 0;
 };
 
 /// Per-CPU core timing snapshot.
@@ -51,7 +52,7 @@ struct CpuCore {
     std::string model;
 
     /// Clock speed in MHz.  May be zero on some virtualized environments.
-    int speed_mhz = 0;
+    i32 speed_mhz = 0;
 
     /// Cumulative timing breakdown for this core.
     CpuTimes times;
@@ -60,13 +61,13 @@ struct CpuCore {
 /// Snapshot of a Process's resource usage.
 struct ProcessStat {
     /// Process ID.
-    int pid = -1;
+    i32 pid = -1;
 
     /// Resident set size in bytes (physical memory).
-    std::size_t rss = 0;
+    usize rss = 0;
 
     /// Virtual memory size in bytes.
-    std::size_t vsize = 0;
+    usize vsize = 0;
 
     /// User-mode CPU time.
     std::chrono::microseconds user_time{};
@@ -75,19 +76,19 @@ struct ProcessStat {
     std::chrono::microseconds system_time{};
 
     /// Peak resident set size in bytes.
-    std::size_t max_rss = 0;
+    usize max_rss = 0;
 
     /// Page faults serviced without I/O (minor faults).
-    std::uint64_t minor_faults = 0;
+    u64 minor_faults = 0;
 
     /// Page faults requiring disk I/O (major faults).
-    std::uint64_t major_faults = 0;
+    u64 major_faults = 0;
 
     /// Context switches initiated by the Process yielding the CPU.
-    std::uint64_t voluntary_context_switches = 0;
+    u64 voluntary_context_switches = 0;
 
     /// Context switches forced by the scheduler.
-    std::uint64_t involuntary_context_switches = 0;
+    u64 involuntary_context_switches = 0;
 };
 
 /// Operating system identification.
@@ -106,22 +107,22 @@ struct UnameInfo {
 };
 
 /// Retrieve the OS pid of the calling Process.
-int pid() noexcept;
+i32 pid() noexcept;
 
 /// Query system memory information.
 MemoryInfo memory();
 
 /// Query the resident set size of the current Process (in bytes).
-Result<std::size_t> resident_memory();
+Result<usize> resident_memory();
 
 /// Query resource usage for a Process by pid (0 = current Process).
-Result<ProcessStat> process(int pid = 0);
+Result<ProcessStat> process(i32 pid = 0);
 
 /// Query per-core CPU information.
 Result<std::vector<CpuCore>> cpu_cores();
 
 /// Return the number of CPUs available to the Process.
-unsigned int parallelism();
+u32 parallelism();
 
 /// Query OS identification strings.
 Result<UnameInfo> uname();
@@ -130,7 +131,7 @@ Result<UnameInfo> uname();
 Result<std::string> hostname();
 
 /// Query the system uptime.
-Result<std::chrono::duration<double>> uptime();
+Result<std::chrono::duration<f64>> uptime();
 
 /// Query the current user's home directory.
 Result<std::string> home_directory();
@@ -143,12 +144,12 @@ Result<std::string> temp_directory();
 /// Windows.  The returned value may not exactly match a prior set_priority()
 /// call on Windows due to priority class mapping.
 /// @param pid  Process ID (0 = current Process).
-Result<int> priority(int pid = 0);
+Result<i32> priority(i32 pid = 0);
 
 /// Set the scheduling priority of a Process.
 /// @param value  Nice value on Unix (-20..19); on Windows the value is mapped
 ///               to the nearest priority class.
 /// @param pid    Process ID (0 = current Process).
-Error set_priority(int value, int pid = 0);
+Error set_priority(i32 value, i32 pid = 0);
 
 } // namespace llc::sys

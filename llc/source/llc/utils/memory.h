@@ -15,6 +15,7 @@
 #include <type_traits>
 #include <utility>
 
+#include <llc/scalar_types.hpp>
 #include <llc/utils/config.h>
 
 namespace llc::mem {
@@ -29,7 +30,7 @@ union Uninitialized {
     constexpr ~Uninitialized() {}
 };
 
-template <typename T, unsigned int N>
+template <typename T, u32 N>
 struct UninitializedArray {
     Uninitialized<T> buffer[N];
 };
@@ -136,15 +137,15 @@ inline void throw_range_length_error() {
 
 template <typename Integer>
 [[nodiscard]]
-consteval std::size_t numeric_max() noexcept {
+consteval usize numeric_max() noexcept {
     static_assert(0 <= (std::numeric_limits<Integer>::max)(), "Integer is nonpositive.");
-    return static_cast<std::size_t>((std::numeric_limits<Integer>::max)());
+    return static_cast<usize>((std::numeric_limits<Integer>::max)());
 }
 
 template <typename ItDiffT>
 constexpr void check_range_length_overflow([[maybe_unused]] ItDiffT len) {
 #ifndef NDEBUG
-    if (static_cast<std::make_unsigned_t<ItDiffT>>(len) > numeric_max<std::size_t>()) {
+    if (static_cast<std::make_unsigned_t<ItDiffT>>(len) > numeric_max<usize>()) {
         throw_range_length_error();
     }
 #endif
@@ -218,7 +219,7 @@ constexpr void destroy_range(Range &&range) noexcept {
 }
 
 template <typename T, typename Alloc = std::allocator<T>>
-[[nodiscard]] constexpr T *allocate(std::size_t count) {
+[[nodiscard]] constexpr T *allocate(usize count) {
     if (count == 0) {
         return nullptr;
     }
@@ -228,7 +229,7 @@ template <typename T, typename Alloc = std::allocator<T>>
 }
 
 template <typename T, typename Alloc = std::allocator<T>>
-constexpr void deallocate(T *data, std::size_t count) noexcept {
+constexpr void deallocate(T *data, usize count) noexcept {
     if (data == nullptr) {
         return;
     }
@@ -245,7 +246,7 @@ constexpr bool pointer_in_range(const T *ptr, std::ranges::contiguous_range auto
     if (count == 0) {
         return false;
     }
-    const auto *last = first + static_cast<std::ptrdiff_t>(count);
+    const auto *last = first + static_cast<isize>(count);
     std::less<const T *> less;
     return !less(ptr, first) && less(ptr, last);
 }
@@ -347,7 +348,7 @@ public:
     using value_type = T;
     using allocator_type = Alloc;
     using pointer = value_type *;
-    using size_type = std::size_t;
+    using size_type = usize;
 
     constexpr explicit AllocationGuard(size_type capacity) : m_data(allocate<value_type, allocator_type>(capacity)), m_capacity(capacity),
                                                              m_constructed(m_data) {}
@@ -388,7 +389,7 @@ private:
 
 template <std::ranges::forward_range Range>
 [[nodiscard]]
-constexpr std::size_t range_length(Range &&range) {
+constexpr usize range_length(Range &&range) {
     using ItDiffT = std::ranges::range_difference_t<Range>;
     auto first = std::ranges::begin(range);
     auto last = std::ranges::end(range);
@@ -396,12 +397,12 @@ constexpr std::size_t range_length(Range &&range) {
         return 0;
     }
 
-    if constexpr (numeric_max<std::size_t>() < numeric_max<ItDiffT>()) {
+    if constexpr (numeric_max<usize>() < numeric_max<ItDiffT>()) {
         if constexpr (std::ranges::random_access_range<Range>) {
             const auto len = last - first;
             assert(0 <= len && "Invalid range.");
             check_range_length_overflow(len);
-            return static_cast<std::size_t>(len);
+            return static_cast<usize>(len);
         } else {
             if (std::is_constant_evaluated()) {
                 ItDiffT len = 0;
@@ -409,21 +410,21 @@ constexpr std::size_t range_length(Range &&range) {
                     ++len;
                 }
                 check_range_length_overflow(len);
-                return static_cast<std::size_t>(len);
+                return static_cast<usize>(len);
             }
             const auto len = std::ranges::distance(range);
             check_range_length_overflow(len);
-            return static_cast<std::size_t>(len);
+            return static_cast<usize>(len);
         }
     } else {
         if (std::is_constant_evaluated()) {
-            std::size_t len = 0;
+            usize len = 0;
             for (; !(first == last); ++first) {
                 ++len;
             }
             return len;
         }
-        return static_cast<std::size_t>(std::ranges::distance(range));
+        return static_cast<usize>(std::ranges::distance(range));
     }
 }
 
@@ -466,11 +467,11 @@ constexpr T *uninitialized_copy(Range &&range, T *dest) {
             return default_uninitialized_copy<T>(std::forward<Range>(range), dest);
         }
 
-        const std::size_t num_copy = range_length(range);
+        const usize num_copy = range_length(range);
         if (num_copy != 0) {
             std::memcpy(dest, iterator_address(std::ranges::begin(range)), num_copy * sizeof(T));
         }
-        return dest + static_cast<std::ptrdiff_t>(num_copy);
+        return dest + static_cast<isize>(num_copy);
     } else {
         return default_uninitialized_copy<T>(std::forward<Range>(range), dest);
     }
@@ -480,13 +481,13 @@ template <typename T, std::ranges::forward_range Range>
 constexpr T *uninitialized_relocate(Range &&range, T *dest) {
     if constexpr (k_is_trivially_relocatable_v<T> && std::ranges::contiguous_range<Range> &&
                   std::same_as<std::remove_cv_t<std::ranges::range_value_t<Range>>, T>) {
-        const std::size_t count = range_length(range);
+        const usize count = range_length(range);
         if (count != 0 && !std::is_constant_evaluated()) {
             std::memcpy(dest, std::ranges::data(range), count * sizeof(T));
         } else if (count != 0) {
             uninitialized_copy<T>(std::forward<Range>(range), dest);
         }
-        return dest + static_cast<std::ptrdiff_t>(count);
+        return dest + static_cast<isize>(count);
     } else {
         return uninitialized_copy<T>(move_range(std::ranges::begin(range), std::ranges::end(range)),
                                      dest);
@@ -495,7 +496,7 @@ constexpr T *uninitialized_relocate(Range &&range, T *dest) {
 
 constexpr auto uninitialized_value_construct(std::ranges::contiguous_range auto &&range) {
     auto *first = std::ranges::data(range);
-    auto *last = std::ranges::data(range) + static_cast<std::ptrdiff_t>(std::ranges::size(range));
+    auto *last = std::ranges::data(range) + static_cast<isize>(std::ranges::size(range));
     using T = std::remove_cv_t<std::ranges::range_value_t<decltype(range)>>;
     if constexpr (std::is_trivially_constructible_v<T>) {
         if (!std::is_constant_evaluated()) {
@@ -518,7 +519,7 @@ constexpr auto uninitialized_value_construct(std::ranges::contiguous_range auto 
 
 constexpr auto uninitialized_default_construct(std::ranges::contiguous_range auto &&range) {
     auto *first = std::ranges::data(range);
-    auto *last = std::ranges::data(range) + static_cast<std::ptrdiff_t>(std::ranges::size(range));
+    auto *last = std::ranges::data(range) + static_cast<isize>(std::ranges::size(range));
     using T = std::remove_cv_t<std::ranges::range_value_t<decltype(range)>>;
     if constexpr (std::is_trivially_default_constructible_v<T>) {
         if (!std::is_constant_evaluated()) {
@@ -542,7 +543,7 @@ constexpr auto uninitialized_default_construct(std::ranges::contiguous_range aut
 template <std::ranges::contiguous_range Range, typename T>
 constexpr auto uninitialized_fill(Range &&range, const T &val) {
     auto *first = std::ranges::data(range);
-    auto *last = std::ranges::data(range) + static_cast<std::ptrdiff_t>(std::ranges::size(range));
+    auto *last = std::ranges::data(range) + static_cast<isize>(std::ranges::size(range));
     T *curr = first;
     LLC_TRY {
         for (; !(curr == last); ++curr) {

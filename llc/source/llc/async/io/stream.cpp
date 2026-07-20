@@ -1,10 +1,13 @@
+#include "stream.h"
+
 #include <algorithm>
 #include <cassert>
 #include <limits>
 #include <utility>
 #include <vector>
 
-#include "awaiter.h"
+#include <llc/scalar_types.hpp>
+#include <llc/async/io/awaiter.h>
 
 namespace llc {
 
@@ -54,7 +57,7 @@ struct StreamReadAwait : uv::AwaitOp<StreamReadAwait> {
         });
     }
 
-    static void on_alloc(uv_handle_t *handle, size_t, uv_buf_t *buf) {
+    static void on_alloc(uv_handle_t *handle, usize, uv_buf_t *buf) {
         auto s = static_cast<Stream::Self *>(handle->data);
         assert(s != nullptr && "on_alloc requires Stream state in handle->data");
 
@@ -69,7 +72,7 @@ struct StreamReadAwait : uv::AwaitOp<StreamReadAwait> {
     }
 
     // When nread=0, it means no data was read but the Stream is still alive (e.g., EAGAIN).
-    static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *) {
+    static void on_read(uv_stream_t *stream, isize nread, const uv_buf_t *) {
         auto s = static_cast<Stream::Self *>(stream->data);
         assert(s != nullptr && "on_read requires Stream state in stream->data");
         if (auto err = uv::status_to_error(nread)) {
@@ -85,7 +88,7 @@ struct StreamReadAwait : uv::AwaitOp<StreamReadAwait> {
             return;
         }
 
-        s->buffer.advance_write(static_cast<size_t>(nread));
+        s->buffer.advance_write(static_cast<usize>(nread));
 
         if (s->reader.has_waiter()) {
             auto *reader = s->reader.waiter;
@@ -126,14 +129,14 @@ struct StreamReadAwait : uv::AwaitOp<StreamReadAwait> {
 
 struct StreamReadSomeAwait : uv::AwaitOp<StreamReadSomeAwait> {
     using await_base = uv::AwaitOp<StreamReadSomeAwait>;
-    using promise_t = Task<std::size_t, Error>::promise_type;
+    using promise_t = Task<usize, Error>::promise_type;
 
     // Stream self that owns the active read waiter.
     Stream::Self *self;
     // Destination buffer provided by the caller.
     std::span<char> dst;
     // Final read result observed by await_resume().
-    Result<std::size_t> out = outcome_error(Error());
+    Result<usize> out = outcome_error(Error());
 
     StreamReadSomeAwait(Stream::Self *self, std::span<char> buffer) : self(self), dst(buffer) {}
 
@@ -149,7 +152,7 @@ struct StreamReadSomeAwait : uv::AwaitOp<StreamReadSomeAwait> {
         });
     }
 
-    static void on_alloc(uv_handle_t *handle, size_t, uv_buf_t *buf) {
+    static void on_alloc(uv_handle_t *handle, usize, uv_buf_t *buf) {
         auto s = static_cast<Stream::Self *>(handle->data);
         assert(s != nullptr && "on_alloc requires Stream state in handle->data");
 
@@ -165,11 +168,11 @@ struct StreamReadSomeAwait : uv::AwaitOp<StreamReadSomeAwait> {
         }
 
         buf->base = aw->dst.data();
-        buf->len = static_cast<unsigned int>(aw->dst.size());
+        buf->len = static_cast<u32>(aw->dst.size());
     }
 
     // When nread=0, it means no data was read but the Stream is still alive (e.g., EAGAIN).
-    static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *) {
+    static void on_read(uv_stream_t *stream, isize nread, const uv_buf_t *) {
         auto s = static_cast<Stream::Self *>(stream->data);
         assert(s != nullptr && "on_read requires Stream state in stream->data");
 
@@ -181,12 +184,12 @@ struct StreamReadSomeAwait : uv::AwaitOp<StreamReadSomeAwait> {
         }
 
         if (nread == UV_EOF) {
-            aw->out = std::size_t{0};
+            aw->out = usize{0};
         } else if (auto err = uv::status_to_error(nread)) {
             aw->out = outcome_error(err);
             aw->mark_cancelled_if(nread);
         } else if (nread > 0) {
-            aw->out = static_cast<std::size_t>(nread);
+            aw->out = static_cast<usize>(nread);
         } else {
             // nread=0 with no Error means no data was read, but the Stream is still alive (e.g.,
             // EAGAIN).
@@ -221,7 +224,7 @@ struct StreamReadSomeAwait : uv::AwaitOp<StreamReadSomeAwait> {
         return this->attach(waiting.promise(), loc);
     }
 
-    Result<std::size_t> await_resume() noexcept {
+    Result<usize> await_resume() noexcept {
         if (self) {
             self->reader.disarm();
         }
@@ -252,7 +255,7 @@ struct StreamWriteAwait : uv::AwaitOp<StreamWriteAwait> {
         // Keep the request in-flight and wait for on_write() to retire it.
     }
 
-    static void on_write(uv_write_t *req, int status) {
+    static void on_write(uv_write_t *req, i32 status) {
         auto *aw = static_cast<StreamWriteAwait *>(req->data);
         assert(aw != nullptr && "on_write requires Awaiter in req->data");
         assert(aw->self != nullptr && "on_write requires Stream state");
@@ -285,7 +288,7 @@ struct StreamWriteAwait : uv::AwaitOp<StreamWriteAwait> {
         req.data = this;
 
         uv_buf_t buf = uv::buf_init(storage.empty() ? nullptr : storage.data(),
-                                    static_cast<unsigned>(storage.size()));
+                                    static_cast<u32>(storage.size()));
         if (auto err = uv::write(req, self->stream, std::span<const uv_buf_t>{&buf, 1}, on_write)) {
             error_code = err;
             self->writer.disarm();
@@ -325,7 +328,7 @@ const void *Stream::handle() const noexcept {
     return self ? &self->stream : nullptr;
 }
 
-HandleType guess_handle(int fd) {
+HandleType guess_handle(i32 fd) {
     switch (uv::guess_handle(fd)) {
         case UV_FILE: return HandleType::FILE;
         case UV_TTY: return HandleType::TTY;
@@ -353,13 +356,13 @@ Task<std::string, Error> Stream::read() {
     co_return out;
 }
 
-Task<std::size_t, Error> Stream::read_some(std::span<char> dst) {
+Task<usize, Error> Stream::read_some(std::span<char> dst) {
     if (!self) {
         co_await fail(Error::k_invalid_argument);
     }
 
     if (dst.empty()) {
-        co_return std::size_t{0};
+        co_return usize{0};
     }
 
     if (self->buffer.readable_bytes() != 0) {
@@ -389,7 +392,7 @@ Task<Stream::Chunk, Error> Stream::read_chunk() {
     co_return out;
 }
 
-void Stream::consume(std::size_t n) {
+void Stream::consume(usize n) {
     if (!self) {
         return;
     }
@@ -448,20 +451,20 @@ Task<void, Error> Stream::write(std::span<const char> data) {
     }
 }
 
-Result<std::size_t> Stream::try_write(std::span<const char> data) {
+Result<usize> Stream::try_write(std::span<const char> data) {
     if (!self || !self->initialized()) {
         return outcome_error(Error::k_invalid_argument);
     }
 
     if (data.empty()) {
-        return std::size_t{0};
+        return usize{0};
     }
 
-    if (data.size() > static_cast<std::size_t>(std::numeric_limits<unsigned>::max())) {
+    if (data.size() > static_cast<usize>(std::numeric_limits<u32>::max())) {
         return outcome_error(Error::k_value_too_large_for_defined_data_type);
     }
 
-    uv_buf_t buf = uv::buf_init(const_cast<char *>(data.data()), static_cast<unsigned>(data.size()));
+    uv_buf_t buf = uv::buf_init(const_cast<char *>(data.data()), static_cast<u32>(data.size()));
     auto res = uv::try_write(self->stream, std::span<const uv_buf_t>{&buf, 1});
     if (!res) {
         return outcome_error(res.error());
