@@ -12,37 +12,37 @@ size_t RingBuffer::read(char *dest, size_t len) {
         return 0;
     }
 
-    const size_t first_chunk = std::min(to_read, data.size() - head);
-    std::memcpy(dest, data.data() + head, first_chunk);
+    const size_t first_chunk = std::min(to_read, capacity - head);
+    std::memcpy(dest, storage.get() + head, first_chunk);
 
     const size_t remaining = to_read - first_chunk;
     if (remaining > 0) {
-        std::memcpy(dest + first_chunk, data.data(), remaining);
+        std::memcpy(dest + first_chunk, storage.get(), remaining);
     }
 
-    head = (head + to_read) % data.size();
+    head = (head + to_read) % capacity;
     size -= to_read;
     return to_read;
 }
 
 std::pair<const char *, size_t> RingBuffer::get_read_ptr() const {
-    if (size == 0 || data.empty()) {
+    if (size == 0) {
         return {nullptr, 0};
     }
 
     // When the buffer is full, head == tail but size > 0. Using `>=` here
     // would yield contiguous = 0, causing read_chunk() to return an empty
     // span and the caller to spin forever. Use strict `>` so the full case
-    // falls through to the else branch (data.size() - head), which is correct.
+    // falls through to the else branch (capacity - head), which is correct.
     size_t contiguous = 0;
     if (tail > head) {
         contiguous = tail - head;
     } else {
-        contiguous = data.size() - head;
+        contiguous = capacity - head;
     }
 
     assert(contiguous > 0 && "get_read_ptr: non-empty buffer must yield contiguous > 0");
-    return {data.data() + head, contiguous};
+    return {storage.get() + head, contiguous};
 }
 
 void RingBuffer::advance_read(size_t len) {
@@ -50,30 +50,22 @@ void RingBuffer::advance_read(size_t len) {
         len = size;
     }
 
-    if (len == 0 || data.empty()) {
-        return;
-    }
-
-    head = (head + len) % data.size();
+    head = (head + len) % capacity;
     size -= len;
 }
 
 std::pair<char *, size_t> RingBuffer::get_write_ptr() {
-    if (data.empty()) {
-        return {nullptr, 0};
-    }
-
     const size_t writable = writable_bytes();
     size_t contiguous = 0;
     if (writable == 0) {
         contiguous = 0;
     } else if (tail >= head) {
-        contiguous = std::min(writable, data.size() - tail);
+        contiguous = std::min(writable, capacity - tail);
     } else {
         contiguous = head - tail;
     }
 
-    return {data.data() + tail, contiguous};
+    return {storage.get() + tail, contiguous};
 }
 
 void RingBuffer::advance_write(size_t len) {
@@ -82,7 +74,7 @@ void RingBuffer::advance_write(size_t len) {
         len = writable;
     }
 
-    tail = (tail + len) % data.size();
+    tail = (tail + len) % capacity;
     size += len;
 }
 
