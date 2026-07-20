@@ -58,6 +58,12 @@ public:
 
     constexpr StringRef(const std::string &s) : base(s) {}
 
+    // rejects temporary std::string to avoid dangling references
+    constexpr StringRef(std::string &&) = delete;
+    constexpr StringRef(std::string const &&) = delete;
+    constexpr StringRef &operator=(std::string &&) = delete;
+    constexpr StringRef &operator=(std::string const &&) = delete;
+
     // --- Comparison ---
 
     /// Compare two strings; result is negative, zero, or positive.
