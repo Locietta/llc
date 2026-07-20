@@ -12,7 +12,7 @@ namespace {
 } // namespace
 
 Slang::ComPtr<slang::IModule> load_span_module(slang::ISession *session) {
-    return load_embedded_module(session, EmbededModuleDesc{
+    return load_embedded_module(session, EmbeddedModuleDesc{
                                              .name = "span",
                                              .start = _binary_span_slang_module_start,
                                              .end = _binary_span_slang_module_end,

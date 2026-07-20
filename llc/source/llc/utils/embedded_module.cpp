@@ -7,7 +7,7 @@ namespace llc {
 
 Slang::ComPtr<slang::IModule> load_embedded_module(
     slang::ISession *session,
-    EmbededModuleDesc const &desc) {
+    EmbeddedModuleDesc const &desc) {
 
     auto blob = Slang::ComPtr<FileBlob>(new FileBlob(std::span<const byte>(
         reinterpret_cast<const byte *>(desc.start),
@@ -22,7 +22,7 @@ Slang::ComPtr<slang::IModule> load_embedded_module(
 
 Slang::ComPtr<slang::IModule> load_embedded_module(
     Context &context,
-    EmbededModuleDesc const &desc) {
+    EmbeddedModuleDesc const &desc) {
     return load_embedded_module(context.slang_session(), desc);
 }
 

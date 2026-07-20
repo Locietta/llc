@@ -179,7 +179,7 @@ Slang::ComPtr<rhi::IComputePipeline> create_linked_texture_pipeline(Context &con
     auto *session = context.slang_session();
     if (!session) return nullptr;
 
-    auto reduce = load_embedded_module(context, EmbededModuleDesc{
+    auto reduce = load_embedded_module(context, EmbeddedModuleDesc{
                                                     .name = "reduce",
                                                     .start = _binary_reduce_slang_module_start,
                                                     .end = _binary_reduce_slang_module_end,
@@ -310,7 +310,7 @@ SlangResult encode_reduce_sum(
 
     using Info = ReduceTypeInfo<T>;
     auto pipeline = get_cached_pipeline(pipeline_cache(context), Info::k_slang_type, [&context]() {
-        auto reduce = load_embedded_module(context, EmbededModuleDesc{
+        auto reduce = load_embedded_module(context, EmbeddedModuleDesc{
                                                         .name = "reduce",
                                                         .start = _binary_reduce_slang_module_start,
                                                         .end = _binary_reduce_slang_module_end,

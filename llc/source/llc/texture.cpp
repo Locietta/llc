@@ -52,7 +52,7 @@ std::string mip_format_specialization_expr(rhi::Format format) {
 }
 
 Slang::ComPtr<rhi::IComputePipeline> create_generate_mips_pipeline(Context &context, rhi::Format format) {
-    auto module = load_embedded_module(context, EmbededModuleDesc{
+    auto module = load_embedded_module(context, EmbeddedModuleDesc{
                                                     .name = "generate_mips",
                                                     .start = _binary_generate_mips_slang_module_start,
                                                     .end = _binary_generate_mips_slang_module_end,
