@@ -3,6 +3,8 @@
 #include <filesystem>
 #include <fstream>
 
+#include <llc/utils/config.h>
+
 namespace llc {
 
 SLANG_NO_THROW SlangResult SLANG_MCALL FileBlob::queryInterface(
@@ -31,6 +33,11 @@ Slang::ComPtr<FileBlob> FileBlob::load(std::filesystem::path const &path) {
     auto data = std::make_unique<byte[]>(size);
 
     std::ifstream file_stream(path, std::ios::binary);
+
+    if (!file_stream) {
+        return nullptr;
+    }
+
     file_stream.read(reinterpret_cast<char *>(data.get()), file_size);
 
     return Slang::ComPtr<FileBlob>(new FileBlob(std::move(data), size));

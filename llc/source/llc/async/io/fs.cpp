@@ -174,6 +174,7 @@ fs::DirHandle::DirHandle(DirHandle &&other) noexcept : dir(other.dir) {
 }
 
 fs::DirHandle &fs::DirHandle::operator=(DirHandle &&other) noexcept {
+    // FIXME: Should we close the existing dir handle if valid?
     if (this != &other) {
         dir = other.dir;
         other.dir = nullptr;
