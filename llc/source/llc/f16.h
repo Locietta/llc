@@ -49,7 +49,12 @@ struct f16 { // NOLINT(readability-identifier-naming)
         return lhs;
     }
 
-    constexpr bool operator==(const f16 &) const noexcept = default;
+    constexpr bool operator==(const f16 &rhs) const noexcept {
+        return static_cast<float>(*this) == static_cast<float>(rhs);
+        // we can't use default operator== because it would compare the bits,
+        // which is not correct for NaN and -0.0 vs 0.0
+    }
+
     auto operator<=>(const f16 &rhs) const noexcept {
         return static_cast<float>(*this) <=> static_cast<float>(rhs);
     }
