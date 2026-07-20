@@ -1,0 +1,6 @@
+target("test-functional")
+    set_kind("binary")
+    set_group("test")
+    add_files("main.cpp")
+    add_deps("llc")
+    add_tests("default")

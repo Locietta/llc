@@ -171,7 +171,9 @@ public:
     };
 
     template <typename T>
-    constexpr static bool k_sbo_eligible = sizeof(T) <= k_sbo_size && alignof(T) <= k_sbo_align;
+    // Use a proper trivially-relocatable trait here once the language provides one.
+    constexpr static bool k_sbo_eligible = sizeof(T) <= k_sbo_size && alignof(T) <= k_sbo_align &&
+                                           std::is_trivially_copyable_v<T>;
 
     Function(const Function &) = delete;
 
@@ -361,7 +363,9 @@ public:
     };
 
     template <typename T>
-    constexpr static bool k_sbo_eligible = sizeof(T) <= k_sbo_size && alignof(T) <= k_sbo_align;
+    // Use a proper trivially-relocatable trait here once the language provides one.
+    constexpr static bool k_sbo_eligible = sizeof(T) <= k_sbo_size && alignof(T) <= k_sbo_align &&
+                                           std::is_trivially_copyable_v<T>;
 
     Function(const Function &) = delete;
 
