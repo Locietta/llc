@@ -5,9 +5,11 @@
 #include <ranges>
 #include <span>
 #include <system_error>
+#include <fmt/format.h>
 
 #include <llc/blob.h>
 #include <llc/utils/fs.h>
+#include <llc/utils/config.h>
 
 namespace llc {
 
@@ -111,19 +113,40 @@ Kernel Kernel::load(
     const char *entry_point_name) {
 
     ComPtr<slang::IEntryPoint> entry_point;
-    slang_module->findEntryPointByName(entry_point_name, entry_point.writeRef());
+    if (auto result = slang_module->findEntryPointByName(entry_point_name, entry_point.writeRef()); SLANG_FAILED(result)) {
+        LLC_THROW(std::runtime_error(fmt::format("Failed to find entry point '{}'", entry_point_name)));
+    }
 
     ComPtr<slang::IComponentType> linked_program;
-    entry_point->link(linked_program.writeRef());
+    {
+        ComPtr<slang::IBlob> diagnostics;
+        entry_point->link(linked_program.writeRef(), diagnostics.writeRef());
+        diagnose_if_needed(diagnostics.get());
+        if (!linked_program) {
+            LLC_THROW(std::runtime_error(fmt::format("Failed to link entry point '{}'", entry_point_name)));
+        }
+    }
 
     Kernel res;
 
     rhi::ComputePipelineDesc desc;
     auto *device = context.device();
-    auto program = device->createShaderProgram(linked_program);
-    desc.program = program.get();
-    res.program_ = program;
+    {
+        ComPtr<slang::IBlob> diagnostics;
+        auto program = device->createShaderProgram(linked_program, diagnostics.writeRef());
+        diagnose_if_needed(diagnostics.get());
+        if (!program) {
+            LLC_THROW(std::runtime_error(fmt::format("Failed to create shader program for entry point '{}'", entry_point_name)));
+        }
+        desc.program = program.get();
+        res.program_ = program;
+    }
+
     res.pipeline_ = device->createComputePipeline(desc);
+    if (!res.pipeline_) {
+        LLC_THROW(std::runtime_error(fmt::format("Failed to create compute pipeline for entry point '{}'", entry_point_name)));
+    }
+
     return res;
 }
 
