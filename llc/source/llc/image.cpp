@@ -102,12 +102,6 @@ Image convert_image(const Image &image, rhi::Format format) {
         return clone;
     }
 
-    if (is_rgba8_format(image.format) && is_rgba8_format(format)) {
-        Image converted(image.width, image.height, format, image.row_pitch);
-        std::memcpy(converted.data(), image.data(), image.size_bytes);
-        return converted;
-    }
-
     const bool src_rgba8 = is_rgba8_format(image.format);
     const bool dst_rgba8 = is_rgba8_format(format);
     const bool src_r8 = image.format == rhi::Format::R8Unorm;

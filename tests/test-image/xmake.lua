@@ -1,0 +1,7 @@
+target("test-image")
+    set_kind("binary")
+    set_group("test")
+    add_files("main.cpp")
+    add_deps("llc")
+    add_packages("slang-rhi", "mdspan")
+    add_tests("default")
