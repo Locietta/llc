@@ -18,14 +18,14 @@ struct FileBlob final : slang::IBlob {
     FileBlob &operator=(const FileBlob &) = delete;
 
     // copy
-    FileBlob(std::span<const byte> data) : ref_count_{1} {
+    FileBlob(std::span<const byte> data) {
         data_ = new byte[data.size()];
         std::memcpy(data_, data.data(), data.size());
         size_ = data.size();
     }
 
     // take ownership of data
-    FileBlob(std::unique_ptr<byte[]> &&data, usize size) noexcept : ref_count_{1} {
+    FileBlob(std::unique_ptr<byte[]> &&data, usize size) noexcept {
         data_ = data.release();
         size_ = size;
     }
