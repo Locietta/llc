@@ -5,8 +5,8 @@
 #include <utility>
 
 #include "awaiter.h"
-#include "llc/async/io/loop.h"
-#include "llc/async/vocab/error.h"
+#include <llc/async/io/loop.h>
+#include <llc/async/vocab/error.h>
 
 namespace llc {
 
@@ -135,7 +135,7 @@ struct UdpRecvAwait : uv::AwaitOp<UdpRecvAwait> {
 
     static void on_read(uv_udp_t *handle,
                         ssize_t nread,
-                        const uv_buf_t *,
+                        const uv_buf_t *buf,
                         const struct sockaddr *addr,
                         unsigned flags) {
         auto *u = static_cast<Udp::Self *>(handle->data);
@@ -147,8 +147,22 @@ struct UdpRecvAwait : uv::AwaitOp<UdpRecvAwait> {
             return;
         }
 
+        // libuv reports nread == 0 with no address when there is nothing to
+        // deliver. For recvmmsg this is also the final UV_UDP_MMSG_FREE
+        // notification for the original allocation.
+        if (nread == 0 && addr == nullptr) {
+            return;
+        }
+
         Udp::RecvResult out{};
-        out.data.assign(u->buffer.data(), u->buffer.data() + nread);
+        if (nread > 0) {
+            assert(buf != nullptr && buf->base != nullptr && "successful UDP read requires a buffer");
+            if (buf == nullptr || buf->base == nullptr) {
+                u->recv.deliver(Error::k_io_error);
+                return;
+            }
+            out.data.assign(buf->base, buf->base + static_cast<usize>(nread));
+        }
         out.flags = to_udp_recv_flags(flags);
 
         if (addr != nullptr) {
@@ -648,7 +662,7 @@ bool Udp::using_recvmmsg() const {
     return uv::udp_using_recvmmsg(self->handle);
 }
 
-std::size_t Udp::send_queue_size() const {
+usize Udp::send_queue_size() const {
     if (!self) {
         return 0;
     }
@@ -656,7 +670,7 @@ std::size_t Udp::send_queue_size() const {
     return uv::udp_get_send_queue_size(self->handle);
 }
 
-std::size_t Udp::send_queue_count() const {
+usize Udp::send_queue_count() const {
     if (!self) {
         return 0;
     }

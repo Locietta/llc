@@ -4,9 +4,10 @@
 #include <string>
 #include <string_view>
 
-#include "llc/async/runtime/task.h"
-#include "llc/async/vocab/error.h"
-#include "llc/async/vocab/owned.h"
+#include <llc/async/runtime/task.h>
+#include <llc/async/vocab/error.h>
+#include <llc/async/vocab/owned.h>
+#include <llc/types.hpp>
 
 namespace llc {
 
@@ -41,13 +42,13 @@ public:
     struct RecvResult {
         std::string data;
         std::string addr;
-        int port = 0;
+        i32 port = 0;
         RecvFlags flags;
     };
 
     struct Endpoint {
         std::string addr;
-        int port = 0;
+        i32 port = 0;
     };
 
     /// Multicast Membership operation.
@@ -127,9 +128,9 @@ public:
 
     bool using_recvmmsg() const;
 
-    std::size_t send_queue_size() const;
+    usize send_queue_size() const;
 
-    std::size_t send_queue_count() const;
+    usize send_queue_count() const;
 
     Error stop_recv();
 
