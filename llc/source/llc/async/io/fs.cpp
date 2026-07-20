@@ -1,7 +1,8 @@
 #include "llc/async/io/fs.h"
 
 #include <cassert>
-#include <functional>
+#include <concepts>
+#include <utility>
 
 #include "awaiter.h"
 #include "llc/async/io/loop.h"
@@ -15,15 +16,20 @@ namespace llc {
 
 namespace {
 
-template <typename FsResult>
-struct FsOp : uv::AwaitOp<FsOp<FsResult>> {
+template <typename Populate, typename FsResult>
+concept fs_result_populator = std::move_constructible<Populate> && requires(Populate &populate, uv_fs_t &req) {
+    { populate(req) } -> std::convertible_to<Result<FsResult>>;
+};
+
+template <typename FsResult, fs_result_populator<FsResult> Populate>
+struct FsOp : uv::AwaitOp<FsOp<FsResult, Populate>> {
     using promise_t = Task<FsResult, Error>::promise_type;
 
     uv_fs_t req = {};
-    std::function<Result<FsResult>(uv_fs_t &)> populate;
+    Populate populate;
     Result<FsResult> out = outcome_error(Error());
 
-    FsOp() = default;
+    explicit FsOp(Populate &&populate) : populate(std::move(populate)) {}
 
     static void on_cancel(IoOp *op) {
         auto *self = static_cast<FsOp *>(op);
@@ -90,15 +96,15 @@ static Result<int> to_uv_copyfile_flags(const fs::CopyfileOptions &options) {
     return static_cast<int>(out);
 }
 
-template <typename Result, typename Submit, typename Populate>
+template <typename Result, typename Submit, fs_result_populator<Result> Populate>
 static Task<Result, Error> run_fs(Submit submit,
                                   Populate populate,
                                   [[maybe_unused]] EventLoop &loop = EventLoop::current()) {
-    FsOp<Result> op;
-    op.populate = populate;
+    using Op = FsOp<Result, Populate>;
+    Op op{std::move(populate)};
 
     auto after_cb = [](uv_fs_t *req) {
-        auto *h = static_cast<FsOp<Result> *>(req->data);
+        auto *h = static_cast<Op *>(req->data);
         assert(h != nullptr && "fs after_cb requires operation in req->data");
 
         h->mark_cancelled_if(req->result);
